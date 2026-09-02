@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root>
+
+    <!-- 3.13 The Resource Management instructions(page 136) -->
+
+    <instruction mnemonic="WRMAP" match_value="8258" match_mask="FFFF" following_word_count="0" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="RDMAP" match_value="8A58" match_mask="FFFF" following_word_count="0" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="WRWRD" match_value="9258" match_mask="FFFF" following_word_count="0" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="RDWRD" match_value="9A58" match_mask="FFFF" following_word_count="0" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="WMSR" match_value="A248" match_mask="E7FF" following_word_count="0" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="RMSR" match_value="8248" match_mask="E7FF" following_word_count="0" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="RMVR" match_value="C248" match_mask="E7FF" following_word_count="0" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="CMVR" match_value="A258" match_mask="FFFF" following_word_count="0" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="CDMA" match_value="AA58" match_mask="FFFF" following_word_count="0" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="RLAF" match_value="6740" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="EXMAP" match_value="C258" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="DXMAP" match_value="CA58" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="MAPSI" match_value="B258" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="MAPSD" match_value="BA58" match_mask="FFFF" following_word_count="0" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="RMST" match_value="D258" match_mask="FFFF" following_word_count="0" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="UJMP" match_value="E248" match_mask="E7FF" following_word_count="0" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="EUB" match_value="6780" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="ECALL" match_value="67C0" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="TRAP" match_value="A048" match_mask="E7FF" following_word_count="0" base_type="IO_SPECIAL"/>
+
+
+</root>

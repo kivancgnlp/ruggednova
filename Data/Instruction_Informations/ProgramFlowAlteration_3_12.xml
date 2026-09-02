@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root>
+
+    <!-- 3.12 Program Flow Alteration Instructions (page 124) -->
+    <instruction mnemonic="JMP" match_value="0" match_mask="F800" following_word_count="0" base_type="MEM_REF_WO_ACC"/>
+    <instruction mnemonic="JMPE" match_value="8018" match_mask="F8FF" following_word_count="1" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="JSR" match_value="800" match_mask="F800" following_word_count="0" base_type="MEM_REF_WO_ACC"/>
+    <instruction mnemonic="PJS" match_value="6741" match_mask="FFFF" following_word_count="1" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="PJSE" match_value="8818" match_mask="F8FF" following_word_count="1" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="PRT" match_value="6081" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="RTRN" match_value="6680" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL"/>
+
+</root>

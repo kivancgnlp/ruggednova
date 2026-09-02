@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<root>
+
+    <!-- 3.4 Memory Reference Instructions (page 44) -->
+    <instruction mnemonic="LDA" match_value="2000" match_mask="E000" following_word_count="0" base_type="MEM_REF_WITH_ACC"/>
+    <instruction mnemonic="LDAE" match_value="A008" match_mask="E03F" following_word_count="1" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="DLD" match_value="7A3F" match_mask="FFFF" following_word_count="1" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="DLDX" match_value="7A7F" match_mask="FFFF" following_word_count="1" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="LEF" match_value="8008" match_mask="E0FF" following_word_count="1" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="LDFNA" match_value="6101" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="LDFNX" match_value="6301" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="LDFNW" match_value="6501" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL"/>
+
+    <instruction mnemonic="STA" match_value="4000" match_mask="E000" following_word_count="0" base_type="MEM_REF_WITH_ACC"/>
+    <instruction mnemonic="STAE" match_value="C008" match_mask="E0FF" following_word_count="1" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="DST" match_value="623F" match_mask="FFFF" following_word_count="1" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="DSTX" match_value="627F" match_mask="FFFF" following_word_count="1" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="STTNA" match_value="6100" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="STTNX" match_value="6300" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL"/>
+
+    <instruction mnemonic="XCHM" match_value="E008" match_mask="E0FF" following_word_count="1" base_type="ALC_W_NLNS"/>
+
+</root>

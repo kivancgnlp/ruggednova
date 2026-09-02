@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root>
+
+    <!-- 3.10 Logical and Shift Instructions (page 101) -->
+
+    <instruction mnemonic="AND" match_value="8700" match_mask="8700" following_word_count="0" base_type="ALC"/>
+    <instruction mnemonic="ANFNA" match_value="61C1" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="ANFNX" match_value="63C1" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="ANFNW" match_value="65C1" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="ANTNA" match_value="61C0" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="ANTNX" match_value="63C0" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL"/>
+
+    <instruction mnemonic="COM" match_value="8000" match_mask="8700" following_word_count="0" base_type="ALC"/>
+    <instruction mnemonic="IOR" match_value="6441" match_mask="E7FF" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="XOR" match_value="6401" match_mask="E7FF" following_word_count="0" base_type="IO_SPECIAL"/>
+
+    <instruction mnemonic="XCH" match_value="8158" match_mask="87FF" following_word_count="0" base_type="ALC_W_NLNS"/>
+
+    <instruction mnemonic="MOV" match_value="8200" match_mask="8700" following_word_count="0" base_type="ALC"/>
+
+    <instruction mnemonic="MGTNA" match_value="6180" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="MGTNX" match_value="6380" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL"/>
+
+    <instruction mnemonic="LASH" match_value="68A0" match_mask="FFF8" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="RASH" match_value="68A8" match_mask="FFF8" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="LASHD" match_value="6860" match_mask="FFF8" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="RASHD" match_value="6868" match_mask="FFF8" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="LDSHD" match_value="6840" match_mask="FFF0" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="LLSH" match_value="6890" match_mask="FFF0" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="RLSH" match_value="68B0" match_mask="FFF0" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="LLSHD" match_value="6850" match_mask="FFF0" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="RLSHD" match_value="6870" match_mask="FFF0" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="LROT" match_value="6880" match_mask="FFF0" following_word_count="0" base_type="IO_SPECIAL"/>
+
+</root>
+
+
+

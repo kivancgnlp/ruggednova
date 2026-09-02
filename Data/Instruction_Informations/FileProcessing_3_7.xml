@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root>
+
+    <!-- 3.7 File Processing Instructions (page 60) -->
+    <instruction mnemonic="FS" match_value="6CC1" match_mask="FFFF" following_word_count="1" base_type="IO_SPECIAL" match_value_octal="66301"/>
+    <instruction mnemonic="LKLS" match_value="7E80" match_mask="FFFF" following_word_count="2" base_type="IO_SPECIAL" match_value_octal="77200"/>
+    <instruction mnemonic="BAM" match_value="7680" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="73200"/>
+    <instruction mnemonic="ZAP" match_value="76C0" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="73300"/>
+    <instruction mnemonic="ABD" match_value="6E00" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="67000"/>
+    <instruction mnemonic="ATD" match_value="6E80" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="67200"/>
+    <instruction mnemonic="RBD" match_value="6E40" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="67100"/>
+    <instruction mnemonic="RTD" match_value="6EC0" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="67300"/>
+
+</root>

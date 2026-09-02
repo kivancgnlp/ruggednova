@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root>
+
+    <!-- 3.8 Fixed Point Arithmetic Instructions (page 70) -->
+
+    <instruction mnemonic="ADD" match_value="8600" match_mask="8700" following_word_count="0" base_type="ALC" match_value_octal="103000"/>
+    <instruction mnemonic="ADC" match_value="8400" match_mask="8700" following_word_count="0" base_type="ALC" match_value_octal="102000"/>
+    <instruction mnemonic="ADNI" match_value="68C0" match_mask="FFC0" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="64300"/>
+    <instruction mnemonic="ADPI" match_value="6800" match_mask="FFC0" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="64000"/>
+
+    <instruction mnemonic="DAD" match_value="6A3F" match_mask="FFFF" following_word_count="1" base_type="IO_SPECIAL" match_value_octal="65077"/>
+    <instruction mnemonic="DADX" match_value="6A7F" match_mask="FFFF" following_word_count="1" base_type="IO_SPECIAL" match_value_octal="65177"/>
+    <instruction mnemonic="ADFNA" match_value="6141" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL" match_value_octal="60501"/>
+    <instruction mnemonic="ADFNX" match_value="6341" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL" match_value_octal="61501"/>
+    <instruction mnemonic="ADFNW" match_value="6541" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL" match_value_octal="62501"/>
+    <instruction mnemonic="ADTNA" match_value="6140" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL" match_value_octal="60500"/>
+    <instruction mnemonic="ADTNX" match_value="6340" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL" match_value_octal="61500"/>
+
+    <instruction mnemonic="SUB" match_value="8500" match_mask="8700" following_word_count="0" base_type="ALC" match_value_octal="102400"/>
+    <instruction mnemonic="SBFNA" match_value="6181" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL" match_value_octal="60601"/>
+    <instruction mnemonic="SBFNX" match_value="6381" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL" match_value_octal="61601"/>
+    <instruction mnemonic="SBFNW" match_value="6581" match_mask="E7FF" following_word_count="1" base_type="IO_SPECIAL" match_value_octal="62601"/>
+    <instruction mnemonic="DEC" match_value="6481" match_mask="E7FF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="62201"/>
+
+    <instruction mnemonic="INC" match_value="8300" match_mask="8700" following_word_count="0" base_type="ALC" match_value_octal="101400"/>
+    <instruction mnemonic="DME" match_value="9818" match_mask="F8FF" following_word_count="1" base_type="ALC_W_NLNS" match_value_octal="114030"/>
+    <instruction mnemonic="IME" match_value="9018" match_mask="F8FF" following_word_count="1" base_type="ALC_W_NLNS" match_value_octal="110030"/>
+
+    <instruction mnemonic="DSZ" match_value="1800" match_mask="F800" following_word_count="0" base_type="MEM_REF_WO_ACC" match_value_octal="14000"/>
+    <instruction mnemonic="ISZ" match_value="1000" match_mask="F800" following_word_count="0" base_type="MEM_REF_WO_ACC" match_value_octal="10000"/>
+
+    <instruction mnemonic="NEG" match_value="8100" match_mask="8700" following_word_count="0" base_type="ALC" match_value_octal="100400"/>
+
+    <instruction mnemonic="DNA" match_value="723F" match_mask="FFFF" following_word_count="1" base_type="IO_SPECIAL" match_value_octal="71077"/>
+    <instruction mnemonic="DNAX" match_value="727F" match_mask="FFFF" following_word_count="1" base_type="IO_SPECIAL" match_value_octal="71177"/>
+    <instruction mnemonic="SDVD" match_value="62FF" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="61377"/>
+    <instruction mnemonic="UDVD" match_value="6641" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63101"/>
+    <instruction mnemonic="UDVI" match_value="6681" match_mask="E7FF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63201"/>
+    <instruction mnemonic="SMPY" match_value="62BF" match_mask="E7FF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="61277"/>
+    <instruction mnemonic="UMPY" match_value="6601" match_mask="E7FF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63001"/>
+    <instruction mnemonic="UMPA" match_value="66C1" match_mask="E7FF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63301"/>
+
+    <instruction mnemonic="TCO" match_value="6701" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63401"/>
+    <instruction mnemonic="SSGE" match_value="8178" match_mask="87FF" following_word_count="0" base_type="ALC_W_NLNS" match_value_octal="100570"/>
+    <instruction mnemonic="SSGT" match_value="8168" match_mask="87FF" following_word_count="0" base_type="ALC_W_NLNS" match_value_octal="100550"/>
+
+
+</root>

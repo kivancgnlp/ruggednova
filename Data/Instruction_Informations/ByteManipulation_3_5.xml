@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<root>
+
+    <!-- 3.5 Byte Manipulation Instructions (page 49)-->
+    <instruction mnemonic="LDB" match_value="C048" match_mask="C7FF" following_word_count="0" base_type="ALC_W_NLNS" match_value_octal="140110"/>
+    <instruction mnemonic="STB" match_value="C058" match_mask="C7FF" following_word_count="0" base_type="ALC_W_NLNS" match_value_octal="140130"/>
+
+    <instruction mnemonic="IBA" match_value="9048" match_mask="F7FF" following_word_count="0" base_type="ALC_W_NLNS" match_value_octal="110110"/>
+
+    <instruction mnemonic="RBR" match_value="C078" match_mask="C7FF" following_word_count="0" base_type="ALC_W_NLNS" match_value_octal="140170"/>
+    <instruction mnemonic="WBR" match_value="C068" match_mask="C7FF" following_word_count="0" base_type="ALC_W_NLNS" match_value_octal="140150"/>
+
+    <instruction mnemonic="COMB" match_value="7240" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="71100"/>
+    <instruction mnemonic="COMBT" match_value="7A40" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="75100"/>
+    <instruction mnemonic="MOVB" match_value="7200" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="71000"/>
+    <instruction mnemonic="MOVBT" match_value="7A00" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="75000"/>
+    <instruction mnemonic="SRCB" match_value="7280" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="71200"/>
+    <instruction mnemonic="SRCBT" match_value="7A80" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="75200"/>
+
+
+</root>

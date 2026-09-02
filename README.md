@@ -1,2 +1,2 @@
-# ruggednova
+# RuggedNova
 RuggedNova CPU Emulator

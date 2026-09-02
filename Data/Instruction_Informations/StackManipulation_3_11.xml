@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root>
+    <!--3.11 Stack Manipulation Instructions (page 111) -->
+    <instruction mnemonic="STISZ" match_value="6781" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="POP" match_value="6281" match_mask="E7FF" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="POPB" match_value="6640" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="PSH" match_value="6241" match_mask="E7FF" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="PST" match_value="67C1" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="SAVE" match_value="6600" match_mask="FFFF" following_word_count="1" base_type="IO_SPECIAL"/>
+
+    <instruction mnemonic="RSP" match_value="6201" match_mask="E7FF" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="WSP" match_value="62C1" match_mask="E7FF" following_word_count="0" base_type="IO_SPECIAL"/>
+
+    <instruction mnemonic="RFP" match_value="8078" match_mask="E7FF" following_word_count="0" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="WFP" match_value="8068" match_mask="E7FF" following_word_count="0" base_type="ALC_W_NLNS"/>
+
+    <instruction mnemonic="RSL" match_value="A078" match_mask="E7FF" following_word_count="0" base_type="ALC_W_NLNS"/>
+    <instruction mnemonic="WSL" match_value="A068" match_mask="E7FF" following_word_count="0" base_type="ALC_W_NLNS"/>
+
+    <instruction mnemonic="FPSH" match_value="6400" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL"/>
+    <instruction mnemonic="FPOP" match_value="6440" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL"/>
+
+</root>

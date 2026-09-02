@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root>
+
+    <!-- 3.6 Bit Manipulation Instructions (page 57) -->
+    <instruction mnemonic="LDF" match_value="7600" match_mask="F7FF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="73000"/>
+    <instruction mnemonic="STF" match_value="7640" match_mask="F7FF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="73100"/>
+    <instruction mnemonic="BTO" match_value="C948" match_mask="DFFF" following_word_count="0" base_type="ALC_W_NLNS" match_value_octal="144510"/>
+    <instruction mnemonic="BTZ" match_value="C148" match_mask="DFFF" following_word_count="0" base_type="ALC_W_NLNS" match_value_octal="140510"/>
+    <instruction mnemonic="SZB" match_value="D148" match_mask="DFFF" following_word_count="0" base_type="ALC_W_NLNS" match_value_octal="150510"/>
+    <instruction mnemonic="SZBO" match_value="D948" match_mask="DFFF" following_word_count="0" base_type="ALC_W_NLNS" match_value_octal="154510"/>
+    <instruction mnemonic="COB" match_value="66C0" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63300"/>
+
+</root>

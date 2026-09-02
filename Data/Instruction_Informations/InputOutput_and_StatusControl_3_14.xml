@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root>
+
+    <!-- 3.14 Input/Output and Status Control Instructions(page 142) -->
+    <instruction mnemonic="NIO" match_value="6000" match_mask="FF00" following_word_count="0" base_type="IO" match_value_octal="60000"/>
+    <instruction mnemonic="DIA" match_value="6100" match_mask="E700" following_word_count="0" base_type="IO" match_value_octal="60400"/>
+    <instruction mnemonic="DIB" match_value="6300" match_mask="E700" following_word_count="0" base_type="IO" match_value_octal="61400"/>
+    <instruction mnemonic="DIC" match_value="6500" match_mask="E700" following_word_count="0" base_type="IO" match_value_octal="62400"/>
+    <instruction mnemonic="DOA" match_value="6200" match_mask="E700" following_word_count="0" base_type="IO" match_value_octal="61000"/>
+    <instruction mnemonic="DOB" match_value="6400" match_mask="E700" following_word_count="0" base_type="IO" match_value_octal="62000"/>
+    <instruction mnemonic="DOC" match_value="6600" match_mask="E700" following_word_count="0" base_type="IO" match_value_octal="63000"/>
+
+    <instruction mnemonic="SKPBN" match_value="6700" match_mask="FFC0" following_word_count="0" base_type="IO" match_value_octal="63400"/>
+    <instruction mnemonic="SKPBZ" match_value="6740" match_mask="FFC0" following_word_count="0" base_type="IO" match_value_octal="63500"/>
+    <instruction mnemonic="SKPDN" match_value="6780" match_mask="FFC0" following_word_count="0" base_type="IO" match_value_octal="63600"/>
+    <instruction mnemonic="SKPDZ" match_value="67C0" match_mask="FFC0" following_word_count="0" base_type="IO" match_value_octal="63700"/>
+
+    <instruction mnemonic="INTEN" match_value="607F" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="60177"/>
+    <instruction mnemonic="INTDS" match_value="60BF" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="60277"/>
+    <instruction mnemonic="INTA" match_value="633F" match_mask="E73F" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="61477"/>
+    <instruction mnemonic="MSKO" match_value="643F" match_mask="E73F" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="62077"/>
+
+    <instruction mnemonic="READS" match_value="613F" match_mask="E73F" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="60477"/>
+    <instruction mnemonic="IORST" match_value="653F" match_mask="E73F" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="62477"/>
+    <instruction mnemonic="HALT" match_value="663F" match_mask="E73F" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63077"/>
+    <instruction mnemonic="DSPD" match_value="64C1" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="62301"/>
+    <instruction mnemonic="CLRD" match_value="60FF" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="60377"/>
+    <instruction mnemonic="STEM" match_value="6041" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="60101"/>
+    <instruction mnemonic="CLEM" match_value="6001" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="60001"/>
+    <instruction mnemonic="STIBN" match_value="74C1" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="72301"/>
+    <instruction mnemonic="CLIBN" match_value="7CC1" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="76301"/>
+    <instruction mnemonic="WAIT" match_value="7EC0" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="77300"/>
+    <instruction mnemonic="RTFNI" match_value="60C1" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="60301"/>
+
+
+    <instruction mnemonic="Skip if ION set" match_value="673F" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63477"/>
+    <instruction mnemonic="Skip if ION clear" match_value="677F" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63577"/>
+    <instruction mnemonic="Skip if power failing" match_value="67BF" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63677"/>
+    <instruction mnemonic="Skip if power OK" match_value="67FF" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63777"/>
+
+
+</root>
