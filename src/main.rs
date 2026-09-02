@@ -6,31 +6,37 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Result, Write};
 use std::path::PathBuf;
 use std::rc::Rc;
+use crate::loaders::paper_tape_image_loader;
 
 mod instruction_identifier;
 mod instruction_decoder;
 mod assembler;
 
+mod loaders;
+
 pub(crate) mod virtual_machine;
+
 
 fn main() -> std::io::Result<()> {
 
 
 
-    let input_file_path = PathBuf::from("Data.bin");
+    let input_file_path = PathBuf::from("Data/Diagnostic images/095-000005-01__Nova_Logic_Test__1969.ab");
 
 
     let mut ex = virtual_machine::ExecutionContext::new();
 
-    let boot_loader_memory = load_program_to_memory(&input_file_path)?;
+    //let boot_loader_memory = load_program_to_memory(&input_file_path)?;
+    let boot_loader_memory = paper_tape_image_loader(input_file_path.to_str().unwrap())?;
     
 
-    ex.load_initial_memory(boot_loader_memory);
+    ex.load_initial_memory(Vec::from(boot_loader_memory));
 
 
     let linear_disassembler_mode = false;
     let instruction_limit = 1000;
     let generate_trace_disassembly = true;
+    ex.ip = 0x40;
 
 
     let file_name_stem = input_file_path.file_stem().unwrap().to_str().unwrap().to_string();
