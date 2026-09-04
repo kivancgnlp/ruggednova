@@ -1,6 +1,6 @@
 # RuggedNova
 
-A Rust emulator for the Data General Nova family of 16-bit minicomputers, written to run original 1969-1976 diagnostic paper-tape images end to end.
+A Rust emulator for the Data General Nova family of 16-bit minicomputers.
 
 ## What it does
 
