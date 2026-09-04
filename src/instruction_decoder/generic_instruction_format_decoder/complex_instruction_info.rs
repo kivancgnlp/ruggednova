@@ -458,6 +458,13 @@ pub(crate) fn explain(mnemonic : &str, execution_context: Option<&mut ExecutionC
             }
 
 
+            "HALT" => {
+
+
+                println!("Halt executed. TTO buffer : {}",ec.tto_buffer);
+            }
+
+
             _ => {
                 //ec.mapping_unit.dump_mem();
                 todo!("Unimplemented mnemonic {mnemonic} (complex instructions info module)");

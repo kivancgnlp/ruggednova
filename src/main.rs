@@ -21,7 +21,8 @@ fn main() -> std::io::Result<()> {
 
 
 
-    let input_file_path = PathBuf::from("Data/Diagnostic images/095-000005-01__Nova_Logic_Test__1969.ab");
+    //let input_file_path = PathBuf::from("Data/Diagnostic images/095-000005-01__Nova_Logic_Test__1969.ab");
+    let input_file_path = PathBuf::from("Data/Diagnostic images/novacputest.ab");
 
 
     let mut ex = virtual_machine::ExecutionContext::new();
@@ -34,9 +35,9 @@ fn main() -> std::io::Result<()> {
 
 
     let linear_disassembler_mode = false;
-    let instruction_limit = 1000;
+    let instruction_limit = 16_000;
     let generate_trace_disassembly = true;
-    ex.ip = 0x40;
+    ex.ip = 0x2;
 
 
     let file_name_stem = input_file_path.file_stem().unwrap().to_str().unwrap().to_string();

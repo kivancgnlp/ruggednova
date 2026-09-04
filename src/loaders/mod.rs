@@ -95,11 +95,30 @@ fn read_le_word(input_stream: &mut impl Read) -> Result<u16, Error>{
 
 #[cfg(test)]
 mod tests {
+    use std::io::{BufWriter, Write};
     use super::*;
     #[test]
     #[ignore]
     fn test_ab_reader() -> Result<(), Error>  {
         paper_tape_image_loader("Data/Diagnostic images/095-000005-01__Nova_Logic_Test__1969.ab")?;
+        Ok(())
+    }
+
+
+    #[test]
+    #[ignore]
+    fn dump_ab_to_file() -> Result<(), Error>  {
+        let mem = paper_tape_image_loader("Data/Diagnostic images/095-000005-01__Nova_Logic_Test__1969.ab")?;
+
+        let mut file = std::fs::File::create("dump_ab_to_file.bin")?;
+        let mut buff_wr = BufWriter::new(file);
+
+        mem.iter().for_each(|x| {
+            let by = x.to_be_bytes();
+            buff_wr.write_all(&by).expect("Error writing data");
+        });
+
+
         Ok(())
     }
 

@@ -53,7 +53,7 @@ impl MappingUnit {
                  eprintln!("Data write to a location that is previously accessed as instruction. Phy adr : {:#x}, user : {}", physical_adr, self.msr.get_current_user_info_str());
                 //panic!("Data access to a location that is previously accessed as instruction. Phy adr : {:#x}, user : {}", physical_adr, self.get_current_user_info_str());
                 //self.dump_observed_mem_access_stats();
-                ok = false;
+                //ok = false; // 04-09-2026 Kivancg : Nova testlerinin çalışması için bu satır iptal edildi
             }
 
             self.mem_adr_referenced_as_data.insert(physical_adr);

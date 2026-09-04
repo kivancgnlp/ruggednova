@@ -16,6 +16,14 @@ pub(crate) fn emulate_io_device(io_device: u8, io_device_register: u8, is_read: 
            println!("RTC initialized");
            handled = true;
        }
+
+       0o11 => {
+
+           let ch = ec.ac[acc_id] as u8;
+           println!("TTO output : {:#x} : {}", ch as u8, ch as char);
+           ec.tto_buffer.push(ch as char);
+           handled = true;
+       }
       
 
        _ => {
