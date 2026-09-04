@@ -42,7 +42,7 @@ pub(crate) fn parse_instruction_informations() -> Result<Vec<InstructionData>>{
 
     let mut all_instructions: Vec<InstructionData> = Vec::new();
 
-    let path = Path::new("data/Instruction_Informations/");
+    let path = Path::new("Data/Instruction_Informations/");
 
     for file in read_dir(path)?{
         if let Ok(file) = file{
