@@ -97,10 +97,6 @@ impl InstructionDecoder {
                 decoded = format!("{}", instruction.mnemonic);
             }
 
-            if instruction.mnemonic == "HALT" && !self.linear_disassembler_mode{
-                panic!("HALT executed");
-            }
-
         }
 
         let usual_next_ip = initial_ip + 1 + extra_instruction_words.len() as u16;
@@ -179,6 +175,11 @@ impl InstructionDecoder {
 
             instruction_counter += 1;            
             if self.generate_trace_disassembly && instruction_counter >= instruction_limit{
+                break
+            }
+
+            if self.ec.cpu_halted {
+                println!("CPU halted");
                 break
             }
         }

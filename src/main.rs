@@ -6,7 +6,7 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Result, Write};
 use std::path::PathBuf;
 use std::rc::Rc;
-use crate::loaders::paper_tape_image_loader;
+use loaders::paper_tape_image_loader;
 
 mod instruction_identifier;
 mod instruction_decoder;

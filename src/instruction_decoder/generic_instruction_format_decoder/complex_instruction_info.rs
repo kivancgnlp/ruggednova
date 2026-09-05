@@ -459,8 +459,7 @@ pub(crate) fn explain(mnemonic : &str, execution_context: Option<&mut ExecutionC
 
 
             "HALT" => {
-
-
+                ec.cpu_halted = true;
                 println!("Halt executed. TTO buffer : {}",ec.tto_buffer);
             }
 

@@ -40,8 +40,10 @@ pub(crate) struct ExecutionContext {
     pub(crate) discovered_subroutines : HashMap<String,HashSet<u16>>,
     pub(crate) call_stack_debug_information : VecDeque<String>,
     pub(crate) rtc_initialized : bool,
-    //pub(crate) tto_buffer : Vec<char>,
+
     pub(crate) tto_buffer : String,
+    pub(crate) cpu_halted : bool,
+
 }
 
 impl Display for ExecutionContext{
@@ -309,6 +311,7 @@ impl ExecutionContext{
             call_stack_debug_information: Default::default(),
             rtc_initialized: false,
             tto_buffer: String::new(),
+            cpu_halted: false,
         }
     }
     
