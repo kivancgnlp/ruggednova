@@ -6,7 +6,8 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Result, Write};
 use std::path::PathBuf;
 use std::rc::Rc;
-use loaders::paper_tape_image_loader;
+
+use loaders::paper_tape_read_ab_file_reader::paper_tape_image_loader;
 
 mod instruction_identifier;
 mod instruction_decoder;
@@ -21,8 +22,8 @@ fn main() -> std::io::Result<()> {
 
 
 
-    //let input_file_path = PathBuf::from("Data/Diagnostic images/095-000005-01__Nova_Logic_Test__1969.ab");
-    let input_file_path = PathBuf::from("Data/Diagnostic images/novacputest.ab");
+    let input_file_path = PathBuf::from("Data/Diagnostic images/095-000005-01__Nova_Logic_Test__1969.ab");
+    //let input_file_path = PathBuf::from("Data/Diagnostic images/novacputest.ab");
 
 
     let mut ex = virtual_machine::ExecutionContext::new();
@@ -34,10 +35,10 @@ fn main() -> std::io::Result<()> {
     ex.load_initial_memory(Vec::from(boot_loader_memory));
 
 
-    let linear_disassembler_mode = false;
-    let instruction_limit = 16_000;
+    let linear_disassembler_mode = true;
+    let instruction_limit = 5_000;
     let generate_trace_disassembly = true;
-    ex.ip = 0x2;
+    ex.ip = 0x40;
 
 
     let file_name_stem = input_file_path.file_stem().unwrap().to_str().unwrap().to_string();
