@@ -7,6 +7,27 @@
 
     <!-- 3.9 Floating-Point Instructions (page 78)(skipped) -->
 
+    <!-- CPU profile / origin attribute
+         Every <instruction> row carries an `origin` attribute naming the earliest CPU that
+         implements it. The instruction identifier filters rows by the active CPU profile at
+         load time, so the hot decode path stays profile-agnostic.
 
+         Recognized values:
+           origin="Nova"  Base 1969 Data General Nova ISA (8 ALC funcs, JMP/JSR/ISZ/DSZ,
+                          LDA/STA, 7 base I/O + 4 I/O skips, INTEN/INTDS/INTA/MSKO/READS/IORST/HALT).
+
+           origin="Rolm"  Post-Nova extension available on Rolm 1602 or later
+                          (1602, 1602B, 1664, 1666, 1666B, MSE/*).
+                          Rolm parts are upward-compatible: any instruction that appeared on
+                          Rolm 1602 also runs on 1664/1666. This tag therefore means
+                          "any Rolm >= 1602" rather than "1602 only". Finer subgeneration tags
+                          (Rolm1664, Rolm1666, ...) may be added later if we ever need a profile
+                          that rejects newer instructions on an older Rolm part.
+
+         CPU profile selection:
+           --cpu Nova     load only origin="Nova" rows
+           --cpu Rolm     load origin="Nova" or origin="Rolm" rows (Nova base + Rolm extensions)
+
+         See docs/cpu-profiles.md for the full rationale. -->
 
 </root>
