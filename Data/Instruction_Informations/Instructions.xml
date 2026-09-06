@@ -17,12 +17,13 @@
                           LDA/STA, 7 base I/O + 4 I/O skips, INTEN/INTDS/INTA/MSKO/READS/IORST/HALT).
 
            origin="Rolm"  Post-Nova extension available on Rolm 1602 or later
-                          (1602, 1602B, 1664, 1666, 1666B, MSE/*).
+                          (1602, 1602A, 1602B, 1603, 1603A, 1664, 1666, 1666B, 1666D,
+                          MSE-14/25, HAWK-32).
                           Rolm parts are upward-compatible: any instruction that appeared on
-                          Rolm 1602 also runs on 1664/1666. This tag therefore means
+                          Rolm 1602 also runs on 1603/1664/1666. This tag therefore means
                           "any Rolm >= 1602" rather than "1602 only". Finer subgeneration tags
-                          (Rolm1664, Rolm1666, ...) may be added later if we ever need a profile
-                          that rejects newer instructions on an older Rolm part.
+                          (Rolm1603, Rolm1664, Rolm1666, ...) may be added later if we ever
+                          need a profile that rejects newer instructions on an older Rolm part.
 
          CPU profile selection:
            --cpu Nova     load only origin="Nova" rows

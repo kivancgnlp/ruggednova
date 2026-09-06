@@ -13,7 +13,7 @@ earliest CPU that implements the opcode. Recognized values today:
 | `origin` | Meaning |
 |---|---|
 | `Nova` | Base 1969 Data General Nova ISA (Nova, SuperNova, Nova 1200). |
-| `Rolm` | Post-Nova extension available on Rolm 1602 or later (1602, 1602B, 1664, 1666, 1666B, MSE/*). |
+| `Rolm` | Post-Nova extension available on Rolm 1602 or later (1602, 1602A, 1602B, 1603, 1603A, 1664, 1666, 1666B, 1666D, MSE-14/25, HAWK-32). |
 
 ### `Nova`
 
@@ -35,9 +35,11 @@ manipulation, bit manipulation, file processing, extended-memory forms, floating
 decimal arithmetic, MMU/resource-management, `LEF`, `TRAP`, `MUL`/`DIV`, `JMPE`,
 `PJSE`, and the ION/power-fail skip forms.
 
-Rolm parts are upward-compatible along `1601 → 1602 → 1602B → 1664 → 1666 → 1666B`.
-Any instruction that appeared on the Rolm 1602 also runs on the 1664 and 1666.
-`origin="Rolm"` therefore means "any Rolm >= 1602", not "1602 only".
+Rolm parts are upward-compatible along `1601 → 1602 → 1602A → 1602B → 1603 →
+1603A → 1664 → 1666 → 1666B → 1666D`, with MSE-14/25 and HAWK-32 as later
+Rolm designs branching from that lineage. Any instruction that appeared on
+the Rolm 1602 also runs on the 1603, 1664, and 1666-series. `origin="Rolm"`
+therefore means "any Rolm >= 1602", not "1602 only".
 
 Total: 135 rows across all XML files.
 
@@ -82,10 +84,13 @@ out at load time and `0x8208` decodes unambiguously as `MOV# 0,0` — the base-N
 
 ## Future work
 
-- **Adding a finer Rolm profile.** If we ever need to reject 1664+ instructions on
-  an older Rolm profile (e.g. `--cpu Rolm1602`), split the current `Rolm` bucket into
-  `Rolm1602` / `Rolm1664` / `Rolm1666` and update the rank table. Existing behavior
-  under `--cpu Rolm` is preserved as long as `--cpu Rolm` continues to mean "any Rolm".
+- **Adding a finer Rolm profile.** If we ever need to reject newer instructions
+  on an older Rolm profile (e.g. `--cpu Rolm1602`), split the current `Rolm`
+  bucket into `Rolm1602` / `Rolm1603` / `Rolm1664` / `Rolm1666` and update the
+  rank table. Existing behavior under `--cpu Rolm` is preserved as long as
+  `--cpu Rolm` continues to mean "any Rolm". The Novas Are Forever ROLM archive
+  (linked in Sources below) has the per-model Programmer's Reference Manuals
+  needed to attribute each currently-`Rolm`-tagged row to its introducing model.
 - **Auto-selecting the profile from the tape name.** The default diagnostic image
   hardcoded in `main.rs` (`095-000005-01__Nova_Logic_Test__1969.ab`) is a base Nova
   test; auto-selecting `Nova` for that name and letting `--cpu` override would make
@@ -95,8 +100,21 @@ out at load time and `0x8208` decodes unambiguously as `MOV# 0,0` — the base-N
 
 ## Sources
 
+### Base Data General Nova
+
 - [Data General Nova base instruction reference (rcn.com)](http://users.rcn.com/crfriend/museum/doco/DG/Nova/base-instr.html)
 - [Data General Nova (Wikipedia)](https://en.wikipedia.org/wiki/Data_General_Nova) — No-Load and Carry-Control semantics
 - [Data General Nova 3 Datapro report (bitsavers)](http://bitsavers.informatik.uni-stuttgart.de/pdf/datapro/datapro_reports_70s-90s/DG/M11-304-10_7909_DG_Nova3.pdf) — Nova 3 additions
+
+### Rolm ruggedized Nova family
+
+- [Novas Are Forever — ROLM documentation archive](https://novasareforever.org/archives/documentation/rolm) — index of Rolm CPU manuals, diagnostics, release notices, and product catalogs
+- [ROLM Model 1602 User's Manual (1974)](https://novasareforever.org/user/archive/public/docs/rolm/493_processors/493-105029-00__ROLM_Model_1602_Users_Manual__1974.pdf)
+- [ROLM Model 5605 / 1602A / 1602B / 1626 / 1650 Processor Programmer's Reference Manual (1981)](https://novasareforever.org/user/archive/public/docs/rolm/493_processors/493-150053-01__ROLM_Model_5605_1602A_1602B_1626_1650_Processor_Programmers_Reference_Manual__1981.pdf)
+- [ROLM Model 1603A Processor Programmer's Reference Manual (1977)](https://novasareforever.org/user/archive/public/docs/rolm/493_processors/493-103200-00__ROLM_Model_1603A_Processor_Programmers_Reference_Manual__1977.pdf)
+- [ROLM Model 1664 AN/UYK-28 Processor Programmer's Reference Manual (1975)](https://novasareforever.org/user/archive/public/docs/rolm/493_processors/493-101400-00__ROLM_Model_1664_AN-UYK-28_Processor_Programmers_Reference_Manual__1975.pdf)
+- [ROLM Model 1666 and 1666D Processor Programmer's Reference Manual (1977-1983)](https://novasareforever.org/user/archive/public/docs/rolm/493_processors/493-150055-02__ROLM_Model_1666_and_1666D_Processor_Programmers_Reference_Manual__1977-1983.pdf)
+- [ROLM Model 1666B Processor Programmer's Reference Manual (1981-1983)](https://novasareforever.org/user/archive/public/docs/rolm/493_processors/493-150084-00__ROLM_Model_1666B_Processor_Programmers_Reference_manual__1981-1983.pdf)
+- [ROLM Model 1602B / 1650 Quick Reference Guide (1978)](https://novasareforever.org/user/archive/public/docs/rolm/493_processors/ROLM_Model_1602B-1650_Quick_Reference_Guide__1978.pdf)
 - [NRC ML20004F950 (Reactor Safety Systems using Hardened Computers)](https://www.nrc.gov/docs/ML2000/ML20004F950.pdf) — Rolm 1602/1664/1666 lineage and instruction-set duplication policy
 - [ROLM Corporation (Wikipedia)](https://en.wikipedia.org/wiki/ROLM) — Rolm ruggedized-Nova product history
