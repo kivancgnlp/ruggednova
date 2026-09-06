@@ -13,7 +13,7 @@ earliest CPU that implements the opcode. Recognized values today:
 | `origin` | Meaning |
 |---|---|
 | `Nova` | Base 1969 Data General Nova ISA (Nova, SuperNova, Nova 1200). |
-| `Rolm` | Post-Nova extension available on Rolm 1602 or later (1602, 1602A, 1602B, 1603, 1603A, 1664, 1666, 1666B, 1666D, MSE-14/25, HAWK-32). |
+| `Rolm` | Post-Nova extension available on Rolm 1602 or later (1602, 1602A, 1602B, 1603, 1603A, 1664, 1666, 1666B, 1666D). |
 
 ### `Nova`
 
