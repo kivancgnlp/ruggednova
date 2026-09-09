@@ -100,7 +100,8 @@ pub(crate) fn decode(instruction_word: u16, extra_word: u16, execution_context: 
             }
 
             "STTNX" => {
-                let target_logical_adr  = ec.ac[2] + extra_word;
+                //let target_logical_adr  = ec.ac[2] + extra_word;
+                let target_logical_adr  = ec.ac[2].wrapping_add(extra_word);
                 ec.mapping_unit.write_word_to_memory(target_logical_adr,ec.ac[ac as usize],true);
             }
 
