@@ -7,7 +7,8 @@ use std::io::{BufReader, BufWriter, Read, Result, Write};
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use loaders::paper_tape_read_ab_file_reader::paper_tape_image_loader;
+use crate::loaders::paper_tape_read_ab_file_reader::paper_tape_image_loader;
+use crate::loaders::octal_listing_to_binary_converter::{dump_memory_to_file, load_binary_file, parse_pdf_parts_to_bin_file};
 
 mod instruction_identifier;
 mod instruction_decoder;
@@ -29,16 +30,21 @@ fn main() -> std::io::Result<()> {
     let mut ex = virtual_machine::ExecutionContext::new();
 
     //let boot_loader_memory = load_program_to_memory(&input_file_path)?;
-    let boot_loader_memory = paper_tape_image_loader(input_file_path.to_str().unwrap())?;
+    //let boot_loader_memory = paper_tape_image_loader(input_file_path.to_str().unwrap())?;
+    //ex.load_initial_memory(Vec::from(boot_loader_memory));
+
+
+    let parsed_mem = parse_pdf_parts_to_bin_file()?;
+    dump_memory_to_file("mem_dump.bin",&parsed_mem)?;
+    ex.load_initial_memory(Vec::from(parsed_mem));
     
 
-    ex.load_initial_memory(Vec::from(boot_loader_memory));
 
-
-    let linear_disassembler_mode = true;
-    let instruction_limit = 5_000;
+    let linear_disassembler_mode = false;
+    let instruction_limit = 1_000;
     let generate_trace_disassembly = true;
-    ex.ip = 0x40;
+    //ex.ip = 0o521;
+    ex.ip = 0o2531;
 
 
     let file_name_stem = input_file_path.file_stem().unwrap().to_str().unwrap().to_string();

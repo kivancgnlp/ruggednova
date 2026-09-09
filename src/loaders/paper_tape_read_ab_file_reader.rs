@@ -1,7 +1,9 @@
+// SPDX-License-Identifier: LicenseRef-Proprietary
+// Copyright (c) 2026 Kivanc Gunalp. All rights reserved.
+
 use std::fmt::{Display, Formatter};
 use std::io::{BufReader, Error, Read, Seek};
-//use crate::loaders::paper_tape_read_ab_file_reader::AbBlock::{DataBlock, FillBlock, SkipBlock, StartBlock};
-//use crate::loaders::{paper_tape_read_ab_file_reader};
+
 
 enum AbBlock {
 
