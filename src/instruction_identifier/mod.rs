@@ -31,7 +31,7 @@ impl InstructionIdentifier {
 
     pub(crate) fn new() -> Result<InstructionIdentifier, std::io::Error> {
 
-        let instructions = instruction_data_parser::parse_instruction_informations()?;
+        let instructions = instruction_data_parser::parse_instruction_informations::<false>()?;
         Ok(InstructionIdentifier {instruction_infos:instructions,
             instruction_info_cache:HashMap::new(),
             instruction_info_cache_utilization : (0,0),

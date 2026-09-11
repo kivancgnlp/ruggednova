@@ -41,7 +41,7 @@ pub(crate) fn dump_memory_to_file(file_name: &str, mem : &[u16;65536]) -> Result
 
 
 pub(crate) fn parse_pdf_parts_to_bin_file() -> Result<[u16; 65536], Error> {
-    let parts = ["(0 - 232)","A", "B", "C", "D","E","F","G","H"];
+    let parts = ["(0 - 232)","A", "B", "C", "D","E","F","G","H","I","J","K"];
 
     let mut mem = [0_u16; 65536];
 

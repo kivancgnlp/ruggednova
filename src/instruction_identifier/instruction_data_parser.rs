@@ -17,6 +17,7 @@ pub(crate) struct InstructionData{
     pub(crate) mnemonic:String,
     pub base_type:String,
     pub parse_status:u8,
+    pub rolm_instruction:bool,
 }
 
 impl InstructionData{
@@ -28,6 +29,7 @@ impl InstructionData{
             mnemonic: "".to_string(),
             base_type: "".to_string(),
             parse_status: 0,
+            rolm_instruction: true,
         }
     }
 }
@@ -38,7 +40,7 @@ impl Display for InstructionData{
     }
 }
 
-pub(crate) fn parse_instruction_informations() -> Result<Vec<InstructionData>>{
+pub(crate) fn parse_instruction_informations<const Nova:bool>() -> Result<Vec<InstructionData>>{
 
     let mut all_instructions: Vec<InstructionData> = Vec::new();
 
@@ -58,6 +60,10 @@ pub(crate) fn parse_instruction_informations() -> Result<Vec<InstructionData>>{
 
     println!("{} instruction information parsed",all_instructions.len());
 
+    if Nova{
+        let filtered = all_instructions.iter().filter(|i| i.rolm_instruction == false).cloned().collect::<Vec<_>>();
+        return Ok(filtered);
+    }
 
     Ok(all_instructions)
 
@@ -99,6 +105,23 @@ fn parse_file_instructions(buff_reader : impl Read, instructions : &mut Vec<Inst
                                 instruction_data.parse_status |= 0x10;
                             }
 
+                            "origin" => {
+                                let origin_value = attr.value.clone();
+
+
+                                instruction_data.rolm_instruction = match origin_value.as_str() {
+                                    "Rolm" => true,
+                                    "Nova" => false,
+                                    _ => {
+                                        debug_assert!(false,"Unknown instruction origin");
+                                        false
+                                    }
+                                };
+
+                                instruction_data.parse_status |= 0x20;
+
+                            }
+
                             "match_value_octal" => { // Only used for document referencing
                                 let match_value_from_octal = u16::from_str_radix(attr.value.as_str(), 8).map_err(|e| Error::other(e))?;
 
@@ -113,7 +136,7 @@ fn parse_file_instructions(buff_reader : impl Read, instructions : &mut Vec<Inst
 
                     };
 
-                    if instruction_data.parse_status == 0x1f{
+                    if instruction_data.parse_status == 0x3f{
                         instructions.push(instruction_data);
                     }else {
                         eprintln!("Instruction all fields not parsed: {:#x}", instruction_data.parse_status);
@@ -143,7 +166,7 @@ fn parse_file_instructions(buff_reader : impl Read, instructions : &mut Vec<Inst
 mod tests{
     #[test]
     fn filter_instructions_01(){
-        let instruction = super::parse_instruction_informations().unwrap();
+        let instruction = super::parse_instruction_informations::<false>().unwrap();
 
         instruction.iter().filter(|x| {
             x.base_type == "IO_SPECIAL"

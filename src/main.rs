@@ -44,7 +44,9 @@ fn main() -> std::io::Result<()> {
     let instruction_limit = 1_000;
     let generate_trace_disassembly = true;
     //ex.ip = 0o521;
-    ex.ip = 0o2531;
+    //ex.ip = 0o2531;
+    //ex.ip = 0o4235;
+    ex.ip = 0o4247;
 
 
     let file_name_stem = input_file_path.file_stem().unwrap().to_str().unwrap().to_string();
