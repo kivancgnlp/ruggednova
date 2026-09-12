@@ -527,8 +527,7 @@ impl MappingUnit {
 
     pub(crate) fn get_cmask(&self) -> u16 {
         
-        let system_data_table_adr = self.mem[3];
-        let cmask = self.mem[(system_data_table_adr+5)as usize];
+        let cmask = self.mem[5];
 
         cmask
 
