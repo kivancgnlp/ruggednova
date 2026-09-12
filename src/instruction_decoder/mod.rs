@@ -52,7 +52,7 @@ impl InstructionDecoder {
         let ins_str = self.decode_instruction(instruction, instruction_word, extra_instruction_words);
 
         
-        let mut asm_line = format!("U:{} IP:{:04x} [{:04x}] {}", self.ec.mapping_unit.msr.get_current_user_info_str(), ip_before_ins, instruction_word, ins_str);
+        let mut asm_line = format!("U:{} IP:{:#06x} ({:#06o}) [{:04x}] {}", self.ec.mapping_unit.msr.get_current_user_info_str(), ip_before_ins,ip_before_ins, instruction_word, ins_str);
 
 
         if !self.linear_disassembler_mode {

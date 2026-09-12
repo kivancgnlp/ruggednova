@@ -67,7 +67,7 @@ pub(crate) fn parse_pdf_parts_to_bin_file() -> Result<[u16; 65536], Error> {
             if let (Some(oct_adr),Some(oct_val))  = (oct_adr,oct_val) {
                 mem[oct_adr as usize] = oct_val;
                 if mem_wr_map.contains_key(&oct_adr){
-                    println!("Address previously written {}", mem_wr_map.get(&oct_adr).unwrap());
+                    println!("Address {:#o} previously written by {}, current line : {}, current file : {}",oct_adr, mem_wr_map.get(&oct_adr).unwrap(),i,part_char);
                 }else {
                     mem_wr_map.insert(oct_adr, oct_val);
                 }

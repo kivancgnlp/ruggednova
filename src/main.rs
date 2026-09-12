@@ -35,7 +35,7 @@ fn main() -> std::io::Result<()> {
 
 
     let parsed_mem = parse_pdf_parts_to_bin_file()?;
-    dump_memory_to_file("mem_dump.bin",&parsed_mem)?;
+    //dump_memory_to_file("mem_dump.bin",&parsed_mem)?;
     ex.load_initial_memory(Vec::from(parsed_mem));
     
 
@@ -47,6 +47,7 @@ fn main() -> std::io::Result<()> {
     //ex.ip = 0o2531;
     //ex.ip = 0o4235;
     ex.ip = 0o4247;
+    //ex.ip = 0o157;
 
 
     let file_name_stem = input_file_path.file_stem().unwrap().to_str().unwrap().to_string();
