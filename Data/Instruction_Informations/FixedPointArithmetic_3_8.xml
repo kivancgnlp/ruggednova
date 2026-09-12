@@ -33,8 +33,8 @@
 
     <instruction mnemonic="DNA" match_value="723F" match_mask="FFFF" following_word_count="1" base_type="IO_SPECIAL" match_value_octal="71077" origin="Rolm"/>
     <instruction mnemonic="DNAX" match_value="727F" match_mask="FFFF" following_word_count="1" base_type="IO_SPECIAL" match_value_octal="71177" origin="Rolm"/>
-    <instruction mnemonic="SDVD" match_value="62FF" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="61377" origin="Rolm"/>
-    <instruction mnemonic="UDVD" match_value="6641" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63101" origin="Rolm"/>
+    <instruction mnemonic="SDVD" match_value="62FF" match_mask="E7FF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="61377" origin="Rolm"/>
+    <instruction mnemonic="UDVD" match_value="6641" match_mask="E7FF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63101" origin="Rolm"/>
     <instruction mnemonic="UDVI" match_value="6681" match_mask="E7FF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63201" origin="Rolm"/>
     <instruction mnemonic="SMPY" match_value="62BF" match_mask="E7FF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="61277" origin="Rolm"/>
     <instruction mnemonic="UMPY" match_value="6601" match_mask="E7FF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63001" origin="Rolm"/>

@@ -3,7 +3,7 @@
 
     <!-- 3.4 Memory Reference Instructions (page 44) -->
     <instruction mnemonic="LDA" match_value="2000" match_mask="E000" following_word_count="0" base_type="MEM_REF_WITH_ACC" origin="Nova"/>
-    <instruction mnemonic="LDAE" match_value="A008" match_mask="E03F" following_word_count="1" base_type="ALC_W_NLNS" origin="Rolm"/>
+    <instruction mnemonic="LDAE" match_value="A008" match_mask="E0FF" following_word_count="1" base_type="ALC_W_NLNS" origin="Rolm"/>
     <instruction mnemonic="DLD" match_value="7A3F" match_mask="FFFF" following_word_count="1" base_type="IO_SPECIAL" origin="Rolm"/>
     <instruction mnemonic="DLDX" match_value="7A7F" match_mask="FFFF" following_word_count="1" base_type="IO_SPECIAL" origin="Rolm"/>
     <instruction mnemonic="LEF" match_value="8008" match_mask="E0FF" following_word_count="1" base_type="ALC_W_NLNS" origin="Rolm"/>
