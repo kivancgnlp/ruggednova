@@ -5,7 +5,7 @@ use crate::instruction_decoder::alc_format_data_fields::Accumulators;
 use crate::instruction_decoder::bit_utils::{get_bits, set_bits};
 use crate::virtual_machine::ExecutionContext;
 
-pub(crate) const INS: [&str; 27] = ["RSP","WSP","RFP","WFP","RSL","WSL","POP","IOR","XOR","PSH","DEC","UDVI","SMPY","UMPY","UMPA","WMSR","RMSR","READS","MSKO","RMVR","TRAP","UJMP","BTZ","BTO","SZB","SZBO","COB"];
+pub(crate) const INS: [&str; 28] = ["RSP","WSP","RFP","WFP","RSL","WSL","POP","IOR","XOR","PSH","DEC","UDVI", "SDVD","SMPY","UMPY","UMPA","WMSR","RMSR","READS","MSKO","RMVR","TRAP","UJMP","BTZ","BTO","SZB","SZBO","COB"];
 
 pub(super) fn decode(mnemonic : &str, instruction_word: u16, ec: Option<&mut ExecutionContext>) -> String {
 
