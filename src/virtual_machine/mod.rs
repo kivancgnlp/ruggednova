@@ -106,13 +106,21 @@ impl ExecutionContext{
 
     }
 
+    // The fifth word of the return block. Figures 3-9 and 3-10 label it "BIT 0 CARRY / BIT 1 OVFL",
+    // and throughout this manual bit 0 is the MOST significant bit — so Carry is 0x8000 and Overflow
+    // is 0x4000, not 0x0001 / 0x0002. Encode and decode are inverses either way, so SAVE/RTRN/POPB
+    // round-trip regardless; the layout only becomes visible when guest code inspects the word
+    // directly, or when a trace is compared against a real machine dump.
+    const RETURN_BLOCK_CARRY_BIT: u16    = 0x8000; // manual bit 0
+    const RETURN_BLOCK_OVERFLOW_BIT: u16 = 0x4000; // manual bit 1
+
     pub(crate) fn encode_carry_and_overflow(&self) -> u16  {
         let mut carry_and_overflow = 0_u16;
         if self.carry_flag {
-            carry_and_overflow |= 1;
+            carry_and_overflow |= Self::RETURN_BLOCK_CARRY_BIT;
         }
         if self.overflow_flag {
-            carry_and_overflow |= 2;
+            carry_and_overflow |= Self::RETURN_BLOCK_OVERFLOW_BIT;
         }
 
         carry_and_overflow
@@ -120,10 +128,11 @@ impl ExecutionContext{
     }
 
     pub(crate) fn decode_carry_and_overflow(&mut self, compound : u16 )  {
-        debug_assert!(compound < 4);
+        debug_assert!(compound & !(Self::RETURN_BLOCK_CARRY_BIT | Self::RETURN_BLOCK_OVERFLOW_BIT) == 0,
+                      "unexpected bits set in the return-block carry/overflow word: {:#06x}", compound);
 
-        self.carry_flag = compound & 1 == 1;
-        self.overflow_flag = compound & 2 == 2;
+        self.carry_flag    = compound & Self::RETURN_BLOCK_CARRY_BIT    != 0;
+        self.overflow_flag = compound & Self::RETURN_BLOCK_OVERFLOW_BIT != 0;
 
 
     }

@@ -144,18 +144,31 @@ pub(crate) fn explain(mnemonic : &str, execution_context: Option<&mut ExecutionC
 
             "BAM" => {
                 //"AC0 : Constant to add, AC1 : Number of words, AC2 : Src address, AC3 : Dst address"
+                //
+                // Manual pp. 3-21..3-22: "if (AC1) = 0, increment (PC) by 1 ... If (AC1) != 0, add
+                // (AC0) with ((AC2)) and store the result at (AC3). Do not change ((AC2)). Increment
+                // (AC2) and (AC3) by 1, decrement (AC1) by 1, and loop to the start."
+                //
+                // The accumulators are the loop state, so they must be advanced as we go: on exit
+                // AC1 is 0 and AC2/AC3 point one past the block. Anything that chains a second block
+                // operation, or checks AC1 to confirm completion, depends on this. It is also what
+                // makes the documented interrupt-and-restart behaviour possible.
                 let constant_to_add = ec.ac[0];
-                let number_of_word = ec.ac[1];
-                let src_adr =  ec.ac[2];
-                let dst_adr =  ec.ac[3];
 
-                for i in 0..number_of_word {
-                    let mut word = ec.mapping_unit.read_word_from_memory(src_adr + i,true);
-                    word = word.wrapping_add(constant_to_add);
-                    ec.mapping_unit.write_word_to_memory(dst_adr + i, word,true);
+                while ec.ac[1] != 0 {
+                    let src_adr = ec.ac[2];
+                    let dst_adr = ec.ac[3];
+
+                    let word = ec.mapping_unit.read_word_from_memory(src_adr, true)
+                                 .wrapping_add(constant_to_add);
+                    ec.mapping_unit.write_word_to_memory(dst_adr, word, true);
+
+                    ec.ac[2] = ec.ac[2].wrapping_add(1);
+                    ec.ac[3] = ec.ac[3].wrapping_add(1);
+                    ec.ac[1] -= 1;
                 }
 
-                //ec.mapping_unit.dump_mem();
+                // Carry and Overflow are not affected.
             }
 
             "TCO" =>{
@@ -176,7 +189,15 @@ pub(crate) fn explain(mnemonic : &str, execution_context: Option<&mut ExecutionC
             }
 
             "IORST" => {
-                // Nothing here (yet)
+                // Manual p. 3-109: "All I/O devices are set idle by clearing all Busy and Done
+                // flags. The 16-bit priority mask is set to zero, and the specified control function
+                // is performed."
+                //
+                // The Busy/Done half needs the device layer to actually carry those flags (finding
+                // A3); the priority mask is state we already hold, so reset it here.
+                println!("IORST: clearing interrupt priority mask");
+                ec.interrupt_priority_mask = 0;
+                // TODO (A3): clear Busy and Done on every emulated device once they exist.
             }
 
             "STIBN" => {
@@ -303,12 +324,18 @@ pub(crate) fn explain(mnemonic : &str, execution_context: Option<&mut ExecutionC
 
             "ZAP" => {
                 //AC0 : Constant to set, AC1 : Number of words, AC2 : Dst address,
+                //
+                // Manual p. 3-23: "if (AC1) = 0, increment (PC) by 1 ... If (AC1) != 0, set ((AC2))
+                // = (AC0). Increment (AC2) by 1, decrement (AC1) by 1, and loop to start."
+                // Same reasoning as BAM: AC1 and AC2 are the loop state and must be left advanced.
                 let constant_to_set = ec.ac[0];
-                let number_of_words = ec.ac[1];
-                let dst_adr = ec.ac[2];
 
-                for i in 0..number_of_words {
-                    ec.mapping_unit.write_word_to_memory(dst_adr + i , constant_to_set,true);
+                while ec.ac[1] != 0 {
+                    let dst_adr = ec.ac[2];
+                    ec.mapping_unit.write_word_to_memory(dst_adr, constant_to_set, true);
+
+                    ec.ac[2] = ec.ac[2].wrapping_add(1);
+                    ec.ac[1] -= 1;
                 }
             }
 
@@ -362,12 +389,15 @@ pub(crate) fn explain(mnemonic : &str, execution_context: Option<&mut ExecutionC
             }
 
             "CMVR" => {
-                println!("Clearing map violation register");
-                ec.mapping_unit.mvr.clear();
+                // Manual p. 3-98: bits 1-7 only. The DMA violation flag (bit 0) is CDMA's job.
+                println!("Clearing map violation register bits 1-7 (DMA violation flag untouched)");
+                ec.mapping_unit.mvr.clear_violations_1_7();
             }
 
             "CDMA" => {
-                println!("Nothing to do for CDMA implemented in simulation right now");
+                // Manual p. 3-98: "Sets bit 0 of the MVR to 0. Does not affect other bits."
+                println!("Clearing DMA violation flag (MVR bit 0)");
+                ec.mapping_unit.mvr.clear_dma_violation();
             }
 
             "ABD" => {
@@ -488,6 +518,89 @@ pub(crate) fn explain(mnemonic : &str, execution_context: Option<&mut ExecutionC
 mod tests {
     use crate::instruction_decoder::bit_utils::set_bits;
     use super::*;
+
+    /// Manual pp. 3-21..3-23: BAM and ZAP advance AC2/AC3 and count AC1 down to zero. Code that
+    /// chains a second block operation, or checks AC1 to confirm completion, depends on this.
+    #[test]
+    fn bam_leaves_the_accumulators_advanced() {
+        let mut ec = ExecutionContext::new();
+        let mut mem = vec![0u16; 64];
+        mem[20] = 1; mem[21] = 2; mem[22] = 3;
+        ec.load_initial_memory(mem);
+
+        ec.ac[0] = 10;   // constant added to each word
+        ec.ac[1] = 3;    // word count
+        ec.ac[2] = 20;   // source
+        ec.ac[3] = 40;   // destination
+
+        explain("BAM", Some(&mut ec));
+
+        assert_eq!(ec.mapping_unit.read_word_from_memory(40, true), 11);
+        assert_eq!(ec.mapping_unit.read_word_from_memory(41, true), 12);
+        assert_eq!(ec.mapping_unit.read_word_from_memory(42, true), 13);
+        assert_eq!(ec.mapping_unit.read_word_from_memory(20, true), 1, "source not modified");
+
+        assert_eq!(ec.ac[1], 0,  "AC1 counts down to zero");
+        assert_eq!(ec.ac[2], 23, "AC2 advanced past the source block");
+        assert_eq!(ec.ac[3], 43, "AC3 advanced past the destination block");
+    }
+
+    #[test]
+    fn zap_leaves_the_accumulators_advanced() {
+        let mut ec = ExecutionContext::new();
+        ec.load_initial_memory(vec![0u16; 64]);
+
+        ec.ac[0] = 0xABCD;
+        ec.ac[1] = 4;
+        ec.ac[2] = 30;
+
+        explain("ZAP", Some(&mut ec));
+
+        for adr in 30..34 {
+            assert_eq!(ec.mapping_unit.read_word_from_memory(adr, true), 0xABCD);
+        }
+        assert_eq!(ec.mapping_unit.read_word_from_memory(34, true), 0, "one word too far");
+        assert_eq!(ec.ac[1], 0,  "AC1 counts down to zero");
+        assert_eq!(ec.ac[2], 34, "AC2 advanced past the block");
+    }
+
+    /// A zero word count is a no-op on memory and on the accumulators.
+    #[test]
+    fn zap_with_zero_count_does_nothing() {
+        let mut ec = ExecutionContext::new();
+        ec.load_initial_memory(vec![0u16; 64]);
+        ec.ac[0] = 0xFFFF; ec.ac[1] = 0; ec.ac[2] = 30;
+        explain("ZAP", Some(&mut ec));
+        assert_eq!(ec.mapping_unit.read_word_from_memory(30, true), 0);
+        assert_eq!(ec.ac[2], 30);
+    }
+
+    /// Manual p. 3-98: CMVR clears bits 1-7 only; CDMA clears bit 0 only.
+    #[test]
+    fn cmvr_and_cdma_clear_disjoint_parts_of_the_mvr() {
+        let mut ec = ExecutionContext::new();
+        ec.load_initial_memory(vec![0u16; 64]);
+
+        ec.mapping_unit.mvr.dma_protection_error = true;
+        ec.mapping_unit.mvr.read_protection_error = true;
+
+        explain("CMVR", Some(&mut ec));
+        assert!(ec.mapping_unit.mvr.dma_protection_error, "CMVR must not touch the DMA flag");
+        assert!(!ec.mapping_unit.mvr.read_protection_error);
+
+        explain("CDMA", Some(&mut ec));
+        assert!(!ec.mapping_unit.mvr.dma_protection_error, "CDMA clears the DMA flag");
+    }
+
+    /// Manual p. 3-109: IORST sets the 16-bit priority mask to zero.
+    #[test]
+    fn iorst_clears_the_priority_mask() {
+        let mut ec = ExecutionContext::new();
+        ec.load_initial_memory(vec![0u16; 64]);
+        ec.interrupt_priority_mask = 0xBEEF;
+        explain("IORST", Some(&mut ec));
+        assert_eq!(ec.interrupt_priority_mask, 0);
+    }
 
     #[test]
     fn rtfni_after_ecall_test()  {

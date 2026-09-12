@@ -101,8 +101,8 @@ pub(crate) fn calculate_effective_adr(ec : &mut ExecutionContext, reference_type
     
     if indirect {
         loop{
-            //let word_addressed = effective_adr;
-            let mut word = ec.mapping_unit.read_word_from_memory(effective_adr, true);
+            let fetched_word = ec.mapping_unit.read_word_from_memory(effective_adr, true);
+            let mut word = fetched_word;
 
             match effective_adr { // auto index check
                 0o20..=0o27 => { // 0x10 - 0x17
@@ -127,7 +127,21 @@ pub(crate) fn calculate_effective_adr(ec : &mut ExecutionContext, reference_type
                 break; // loop one time if expanded mem enabled
             }
 
-            if effective_adr & 0x8000 == 0{
+            // Manual section 2.18: "When referencing auto-increment or auto-decrement locations,
+            // the state of bit 0 BEFORE the increment or decrement operation is the condition which
+            // is tested to determine whether or not to continue the indirect chain."
+            //
+            // So the continue/stop decision reads the word as it was fetched, while the address the
+            // chain follows is the updated value. The two only differ on 0x7FFF -> 0x8000 through an
+            // auto-increment location and 0x8000 -> 0x7FFF through an auto-decrement one, which is
+            // exactly the boundary an addressing diagnostic will probe.
+            //
+            // OPEN QUESTION: in the 0x7FFF -> 0x8000 case the chain stops here, but the updated
+            // value carries a bit 0 that section 2.17 says is the indirect bit rather than part of
+            // the address. Whether the hardware hands back 0x8000 or masks it to 0x0000 is not
+            // settled by the text. Left unmasked (the pre-existing behaviour); worth confirming on
+            // the Memory Address Test tape before changing.
+            if fetched_word & 0x8000 == 0{
                 break; // if no indirect indicator break the loop
             }
 
@@ -135,6 +149,8 @@ pub(crate) fn calculate_effective_adr(ec : &mut ExecutionContext, reference_type
             println!("Resolving multiple indirection");
             effective_adr = effective_adr & 0x7fff;
 
+            // TODO (A7): manual section 1.6 faults a chain deeper than 16 levels. Without a depth
+            // counter a self-referencing indirect word spins here forever.
         }
 
     } // end of the indirect case
@@ -170,6 +186,47 @@ pub(crate) fn calculate_effective_adr_16bit_displacement(ec : &mut ExecutionCont
 mod tests {
     use crate::instruction_decoder::bit_utils::set_bits;
     use super::*;
+
+    /// Manual section 2.18: "the state of bit 0 BEFORE the increment or decrement operation is the
+    /// condition which is tested to determine whether or not to continue the indirect chain."
+    ///
+    /// Location 21 (octal) is an auto-increment location. Seeded with 0x7FFF, the word as FETCHED
+    /// has bit 0 clear, so the chain must stop — even though the value written back and followed,
+    /// 0x8000, has bit 0 set. Testing the updated word instead would take one more level of
+    /// indirection, which the marker at location 0 makes visible.
+    #[test]
+    fn auto_index_tests_bit_zero_before_the_update() {
+        let mut ec = ExecutionContext::new();
+        let mut mem = vec![0u16; 0x40];
+        mem[0] = 0x1234;                 // only reached if the chain wrongly continues
+        mem[0o21] = 0x7fff;              // auto-increment location, bit 0 clear as fetched
+        ec.load_initial_memory(mem);
+
+        let efa = calculate_effective_adr(&mut ec, ReferenceType::Page0, 0o21, true);
+
+        assert_eq!(ec.mapping_unit.read_word_from_memory(0o21, true), 0x8000,
+                   "the auto-increment location is still updated");
+        assert_ne!(efa, 0x1234,
+                   "the chain must stop on the fetched bit 0, not the incremented one");
+    }
+
+    /// The ordinary case, to pin the behaviour the above test is contrasted against: a fetched word
+    /// with bit 0 set does take another level.
+    #[test]
+    fn auto_index_continues_when_the_fetched_word_has_bit_zero_set() {
+        let mut ec = ExecutionContext::new();
+        let mut mem = vec![0u16; 0x40];
+        mem[0o21] = 0x8030;              // bit 0 set -> continue
+        mem[0x31]  = 0x002a;             // second level, reached via the INCREMENTED value 0x8031
+        ec.load_initial_memory(mem);
+
+        let efa = calculate_effective_adr(&mut ec, ReferenceType::Page0, 0o21, true);
+
+        assert_eq!(ec.mapping_unit.read_word_from_memory(0o21, true), 0x8031,
+                   "location incremented before the chain follows it");
+        assert_eq!(efa, 0x002a, "one further level resolved");
+    }
+
     #[test]
     fn test_01()  {
         let str = decode(0x517, 0, None);

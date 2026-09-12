@@ -357,3 +357,72 @@ mod tests {
     }
 
 }
+
+#[cfg(test)]
+mod decode_table_conformance {
+    use super::*;
+
+    /// Canonical instruction words from the manual's own headers (Appendix E page references in
+    /// brackets), for every instruction whose bit diagram carries a two-bit `ac` / `AC` field at
+    /// bits 3-4. The header always prints the field as 00, so sweeping ac over 0..3 and asserting
+    /// the mnemonic is unchanged is exactly the check that catches a `match_mask` which pins the
+    /// accumulator by mistake.
+    ///
+    /// This is the test that would have caught SDVD and UDVD decoding as DOA and DOC.
+    const AC_FIELD_INSTRUCTIONS: &[(&str, u16)] = &[
+        ("SDVD", 0o061377), ("UDVD", 0o063101), ("UDVI", 0o063201), // 3-35, 3-36
+        ("SMPY", 0o061277), ("UMPY", 0o063001), ("UMPA", 0o063301), // 3-36
+        ("POP",  0o061201), ("PSH",  0o061101),                     // 3-71, 3-72
+        ("RSP",  0o061001), ("WSP",  0o061301),                     // 3-74, 3-75
+        ("RFP",  0o100170), ("WFP",  0o100150),                     // 3-75, 3-76
+        ("RSL",  0o120170), ("WSL",  0o120150),                     // 3-76, 3-77
+        ("DEC",  0o062201),                                         // 3-33
+        ("IOR",  0o062101), ("XOR",  0o062001),                     // 3-62, 3-63
+        ("TRAP", 0o120110), ("UJMP", 0o161110),                     // 3-101, 3-99
+        ("WMSR", 0o121110), ("RMSR", 0o101110), ("RMVR", 0o141110), // 3-97
+        ("LDAE", 0o120010), ("STAE", 0o140010),                     // 3-4, 3-6
+        ("LEF",  0o100010), ("XCHM", 0o160010),                     // 3-5, 3-7
+    ];
+
+    #[test]
+    fn ac_field_is_never_pinned_by_a_mask() {
+        let mut identifier = InstructionIdentifier::new().expect("instruction tables should load");
+        let mut failures = Vec::new();
+
+        for (mnemonic, canonical) in AC_FIELD_INSTRUCTIONS {
+            for ac in 0u16..4 {
+                let word = canonical | (ac << 11); // bits 3-4 in the manual's numbering
+                match identifier.identify_instruction(word) {
+                    Some(found) if found.mnemonic == *mnemonic => {}
+                    Some(found) => failures.push(format!(
+                        "{} with ac={} ({:#06x}) decoded as {}", mnemonic, ac, word, found.mnemonic)),
+                    None => failures.push(format!(
+                        "{} with ac={} ({:#06x}) matched no instruction", mnemonic, ac, word)),
+                }
+            }
+        }
+
+        assert!(failures.is_empty(), "decode table regressions:\n  {}", failures.join("\n  "));
+    }
+
+    /// The extended memory-reference formats fix bits 8-15 to 00001000 (manual pp. 3-4 to 3-7), so
+    /// a word differing only in the ALC SHIFT field at bits 8-9 must not match them. Those words
+    /// are unimplemented instruction codes in Appendix D.
+    #[test]
+    fn extended_formats_do_not_swallow_the_shift_field() {
+        let mut identifier = InstructionIdentifier::new().expect("instruction tables should load");
+
+        for (mnemonic, canonical) in [("LDAE", 0xA008u16), ("LEF", 0x8008), ("STAE", 0xC008), ("XCHM", 0xE008)] {
+            assert_eq!(identifier.identify_instruction(canonical).map(|d| d.mnemonic),
+                       Some(mnemonic.to_string()),
+                       "{} should decode at its canonical value", mnemonic);
+
+            for shift in [0b01u16, 0b10, 0b11] {
+                let word = canonical | (shift << 6); // bits 8-9
+                let decoded = identifier.identify_instruction(word).map(|d| d.mnemonic);
+                assert_ne!(decoded, Some(mnemonic.to_string()),
+                           "{:#06x} must not decode as {} — bits 8-9 are fixed zero", word, mnemonic);
+            }
+        }
+    }
+}

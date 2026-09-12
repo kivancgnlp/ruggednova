@@ -43,6 +43,17 @@ pub(super) fn decode(mnemonic: &str, extra_word: u16, instruction_word: u16, ec:
             }
 
             "SAVE" => {
+                // Manual p. 3-73:
+                //   set ((SP)-1) with (AC3) ... set ((SP)-6) with (FP)
+                //   set (FP) with (SP)-6
+                //   set (SP) with (SP)-7-N
+                //   set (AC3) with (FP)
+                //
+                // Note the asymmetry: six words are pushed, but the stack pointer drops by
+                // seven plus N. The extra word is why p. 3-80 calls the stack frame header
+                // "a fixed seven words in length". Landing SP one word higher than this leaves
+                // the bottom of the frame unprotected — with SAVE 0 the manual's own example
+                // (STA 0,-1,3, i.e. FP-1) would write below the stack pointer.
                 ec.push_a_single_word_to_the_stack(ec.ac[3]);
                 ec.push_a_single_word_to_the_stack(ec.ac[2]);
                 ec.push_a_single_word_to_the_stack(ec.ac[1]);
@@ -50,14 +61,25 @@ pub(super) fn decode(mnemonic: &str, extra_word: u16, instruction_word: u16, ec:
                 ec.push_a_single_word_to_the_stack(ec.encode_carry_and_overflow());
                 ec.push_a_single_word_to_the_stack(ec.fp);
 
-                ec.fp = ec.sp;
+                ec.fp = ec.sp;                                   // (SP)-6 after the six pushes
 
-                for i in 0..extra_word{
-                    ec.push_a_single_word_to_the_stack(0xaacc); // Boyle yapmak kolay geldi, ek özellik stack canary de olur
+                // Allocate the frame: one word plus the N requested by the immediate field.
+                // Written directly rather than via push, because this is an SP adjustment and
+                // not a sequence of Push operations.
+                let allocated = 1_u16.wrapping_add(extra_word);
+                let new_sp = ec.sp.wrapping_sub(allocated);
+
+                let mut adr = new_sp;
+                while adr != ec.sp {
+                    ec.mapping_unit.write_word_to_memory(adr, 0xaacc, true); // canary, aids debugging
+                    adr = adr.wrapping_add(1);
                 }
+                ec.sp = new_sp;
 
                 ec.ac[3] = ec.fp;
 
+                // TODO (A1): the manual requires a stack-overflow check here — after the sixth
+                // word is pushed, and again after N is subtracted, including the roll-over case.
             }
 
             "LDAE" | "STAE" => { // Similar to LDA instruction but displacement is 16 bit
@@ -163,6 +185,69 @@ pub(super) fn decode(mnemonic: &str, extra_word: u16, instruction_word: u16, ec:
 mod tests {
     use crate::instruction_decoder::bit_utils::set_bits;
     use super::*;
+
+
+    /// Manual p. 3-73: SAVE pushes six words, sets FP to (SP)-6, but drops SP to (SP)-7-N.
+    /// The extra word is why p. 3-80 calls the stack frame header "a fixed seven words in length".
+    #[test]
+    fn save_allocates_seven_words_plus_n() {
+        let mut ec = ExecutionContext::new();
+        ec.load_initial_memory(vec![0; 64]);
+        ec.sp = 50;
+        ec.sl = 10;
+        ec.fp = 60;
+
+        decode("SAVE", 4, 0, Some(&mut ec)); // SAVE 4
+
+        assert_eq!(ec.fp, 44, "FP = (SP)-6");
+        assert_eq!(ec.sp, 39, "SP = (SP)-7-N = 50-7-4");
+        assert_eq!(ec.ac[3], ec.fp, "AC3 = FP");
+        assert!(ec.sp < ec.fp, "the reserved frame sits below FP");
+    }
+
+    /// With SAVE 0 the manual's own frame example (STA 0,-1,3 — i.e. FP-1) must still land at or
+    /// above the stack pointer. That is the whole point of the seventh word.
+    #[test]
+    fn save_zero_still_leaves_one_word_below_fp() {
+        let mut ec = ExecutionContext::new();
+        ec.load_initial_memory(vec![0; 64]);
+        ec.sp = 50;
+        ec.sl = 10;
+        ec.fp = 60;
+
+        decode("SAVE", 0, 0, Some(&mut ec)); // SAVE 0
+
+        assert_eq!(ec.fp, 44);
+        assert_eq!(ec.sp, 43, "SP = 50-7-0");
+        let frame_word = ec.fp - 1;             // where STA 0,-1,3 writes
+        assert!(frame_word >= ec.sp, "FP-1 must be inside the allocated frame");
+    }
+
+    /// Whatever the layout, SAVE/RTRN and SAVE/POPB must round-trip: RTRN recomputes SP as (FP)+7
+    /// and POPB as (FP)+6, independently of what SAVE did.
+    #[test]
+    fn save_and_rtrn_round_trip_the_stack_pointer() {
+        let mut ec = ExecutionContext::new();
+        ec.load_initial_memory(vec![0; 64]);
+        ec.sp = 50; ec.sl = 10; ec.fp = 60; ec.ip = 7;
+        ec.carry_flag = true; ec.overflow_flag = true;
+        ec.ac = [1, 2, 3, 4];
+
+        decode("PJS", 20, 0, Some(&mut ec));   // pushes the return address
+        let sp_after_call = ec.sp;
+        decode("SAVE", 4, 0, Some(&mut ec));
+
+        ec.ac = [0, 0, 0, 0];
+        ec.carry_flag = false; ec.overflow_flag = false;
+
+        crate::instruction_decoder::generic_instruction_format_decoder::decode(
+            "RTRN", 0, Some(&0_u16), Some(&mut ec));
+
+        assert_eq!(ec.ac, [1, 2, 3, 4], "accumulators restored");
+        assert!(ec.carry_flag && ec.overflow_flag, "carry and overflow restored");
+        assert_eq!(ec.sp, sp_after_call + 1, "RTRN also pops the PJS return address");
+        assert_eq!(ec.fp, 60, "old frame pointer restored");
+    }
 
     #[test]
     fn dna_test()  {

@@ -157,10 +157,16 @@ pub(crate) fn word_seach_fs(ec: &mut ExecutionContext, mask:u16) -> Option<u16> 
     let lower_limit_search_value = ec.ac[0];
     let upper_limit_search_value = ec.ac[1];
 
-    let search_adr_base = ec.ac[2] + 1;
+    // Manual p. 3-19: "Search a file whose first address is (AC2) + 1 and whose last address is
+    // (AC3)." (AC3) is the last address of the file, not one past it, so the range is inclusive.
+    let search_adr_base = ec.ac[2].wrapping_add(1);
     let search_adr_last = ec.ac[3] ;
 
-    for adr in search_adr_base..search_adr_last {
+    if search_adr_base > search_adr_last {
+        return None;
+    }
+
+    for adr in search_adr_base..=search_adr_last {
         let val = ec.mapping_unit.read_word_from_memory(adr,true);
         let val = val & mask;
 
@@ -228,6 +234,50 @@ pub(crate) fn move_byte_string(ec : &mut ExecutionContext) {
 mod tests {
 
     use super::*;
+
+    /// Manual p. 3-19: "(AC2) + 1" is the first address and "(AC3)" is the LAST address of the
+    /// file, so a match in the final word must be found.
+    #[test]
+    fn fs_searches_the_last_word_of_the_file(){
+        let mut ec = ExecutionContext::new();
+        let mut mem = vec![0u16; 32];
+        mem[10] = 0x1111;   // first word of the file
+        mem[11] = 0x2222;
+        mem[12] = 0x3333;   // last word of the file, and the only match
+        ec.load_initial_memory(mem);
+
+        ec.ac[0] = 0x3333;  // lower limit
+        ec.ac[1] = 0x3333;  // upper limit
+        ec.ac[2] = 9;       // first address is AC2 + 1 == 10
+        ec.ac[3] = 12;      // last address, inclusive
+
+        assert_eq!(word_seach_fs(&mut ec, 0xFFFF), Some(12));
+    }
+
+    #[test]
+    fn fs_reports_no_match_without_running_off_the_end(){
+        let mut ec = ExecutionContext::new();
+        let mut mem = vec![0u16; 32];
+        mem[10] = 1; mem[11] = 2; mem[12] = 3;
+        mem[13] = 0x3333;   // just past the file — must NOT be examined
+        ec.load_initial_memory(mem);
+
+        ec.ac[0] = 0x3333; ec.ac[1] = 0x3333;
+        ec.ac[2] = 9; ec.ac[3] = 12;
+
+        assert_eq!(word_seach_fs(&mut ec, 0xFFFF), None);
+    }
+
+    /// An empty file (AC3 <= AC2) must terminate rather than wrap all the way round.
+    #[test]
+    fn fs_handles_an_empty_file(){
+        let mut ec = ExecutionContext::new();
+        ec.load_initial_memory(vec![0u16; 32]);
+        ec.ac[0] = 0; ec.ac[1] = 0xFFFF;
+        ec.ac[2] = 12; ec.ac[3] = 12;     // first address 13 > last address 12
+        assert_eq!(word_seach_fs(&mut ec, 0xFFFF), None);
+    }
+
     #[test]
     fn deque_test_01(){ 
 

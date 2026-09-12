@@ -48,8 +48,19 @@ impl MemoryViolationsRegister {
         }
     }
     
+    /// Clears every bit, including the DMA violation flag. This is the power-on / master-reset
+    /// behaviour — it is NOT what the CMVR instruction does. Use `clear_violations_1_7` for CMVR
+    /// and `clear_dma_violation` for CDMA.
     pub(crate) fn clear(&mut self){
-        self.dma_protection_error = false;
+        self.clear_violations_1_7();
+        self.clear_dma_violation();
+    }
+
+    /// CMVR — CLEAR MAP VIOLATION REGISTER, manual p. 3-98:
+    ///   "Bits 1-7 of the MVR are cleared. This does not affect the DMA Violation flag (bit 0 of
+    ///    the MVR). Unfreezes words 0-2 of the last address file."
+    /// Bit 0 (`dma_protection_error`) is deliberately left alone; only CDMA clears it.
+    pub(crate) fn clear_violations_1_7(&mut self){
         self.execute_protection_error = false;
         self.read_protection_error = false;
         self.write_protection_error = false;
@@ -57,7 +68,13 @@ impl MemoryViolationsRegister {
         self.io_protection_error = false;
         self.privileged_instruction_protection_error = false;
         self.violation_occurred_during_single_cycle_operation = false;
-        
+    }
+
+    /// CDMA — CLEAR DMA VIOLATION, manual p. 3-98:
+    ///   "Sets bit 0 of the MVR to 0. Does not affect other bits of the MVR. Unfreezes word 3 of
+    ///    the last address file."
+    pub(crate) fn clear_dma_violation(&mut self){
+        self.dma_protection_error = false;
     }
     
     pub(crate) fn get_mvr_word(&self, user:u8) -> u16{
