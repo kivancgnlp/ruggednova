@@ -66,27 +66,37 @@ pub(super) fn execute_alu_op(acs_value:u16, acd_value:u16, carry_initial_setting
         AlcShiftField::S => (function_result.swap_bytes(), function_carry_sum),
     };
 
-    match function {
-        AlcFunctionField::ADD => {
-            ec.overflow_flag = check_overflow(acs_value, acd_value, function_result, true);
-        }
+    // The no-load (#) bit suppresses the Overflow update as well as Carry and acd.
+    //
+    // The instruction pages only name "Carry and (acd)" as unchanged when # is set, but INS02
+    // settles it. Its divide-by-zero case at 04632 runs SDVD (which must set Carry and Overflow),
+    // then four SUB# compare instructions, then TCO at 04643 expecting Overflow to still be set.
+    // Updating Overflow here unconditionally clears it on the first SUB# and sends the test to its
+    // error routine. That also makes sense of the idiom generally: SUB#/ADC# are how Nova code
+    // compares, and TCO would be unusable after a comparison if they clobbered Overflow.
+    if !no_load {
+        match function {
+            AlcFunctionField::ADD => {
+                ec.overflow_flag = check_overflow(acs_value, acd_value, function_result, true);
+            }
 
-        AlcFunctionField::INC => {
-            ec.overflow_flag = check_overflow(acs_value, 1, function_result, true);
-        }
+            AlcFunctionField::INC => {
+                ec.overflow_flag = check_overflow(acs_value, 1, function_result, true);
+            }
 
-        AlcFunctionField::SUB | AlcFunctionField::ADC => {
-            ec.overflow_flag = check_overflow(acs_value, acd_value, function_result, false);
-        }
+            AlcFunctionField::SUB | AlcFunctionField::ADC => {
+                ec.overflow_flag = check_overflow(acs_value, acd_value, function_result, false);
+            }
 
-        AlcFunctionField::NEG => {
-            ec.overflow_flag = acs_value == 0x8000;
-        }
+            AlcFunctionField::NEG => {
+                ec.overflow_flag = acs_value == 0x8000;
+            }
 
 
 
-        _ => {
-            // Overflow flag not affected in logical operations other than add or sub
+            _ => {
+                // Overflow flag not affected in logical operations other than add or sub
+            }
         }
     }
 
@@ -164,4 +174,44 @@ fn do_right_shift(mut value: u16) -> (u16, bool) {
     value >>= 1;
 
     (value,carry)
+}
+
+#[cfg(test)]
+mod no_load_overflow {
+    use crate::instruction_decoder::alc_format_instruction_decoder;
+    use crate::virtual_machine::ExecutionContext;
+
+    /// INS02's divide-by-zero case at 04632 runs SDVD (which sets Carry and Overflow), then four
+    /// SUB# compares, then TCO at 04643 expecting Overflow to still be set. The no-load bit has to
+    /// suppress the Overflow update the same way it suppresses Carry and acd.
+    #[test]
+    fn no_load_leaves_overflow_alone() {
+        let mut ec = ExecutionContext::new();
+        ec.load_initial_memory(vec![0; 32]);
+        ec.overflow_flag = true;
+        ec.carry_flag = true;
+
+        // SUB# AC0,AC0 SZR — 0x850c, the standard Nova compare idiom.
+        alc_format_instruction_decoder::decode(0x850c, Some(&mut ec));
+
+        assert!(ec.overflow_flag, "# must leave Overflow unchanged");
+        assert!(ec.carry_flag, "# must leave Carry unchanged");
+    }
+
+    /// The same operation WITHOUT the no-load bit does update both.
+    #[test]
+    fn loading_form_still_updates_the_flags() {
+        let mut ec = ExecutionContext::new();
+        ec.load_initial_memory(vec![0; 32]);
+        ec.overflow_flag = true;
+        ec.carry_flag = false;
+        ec.ac[0] = 1;
+
+        // SUB AC0,AC0 SZR — 0x8504, same instruction with # clear.
+        alc_format_instruction_decoder::decode(0x8504, Some(&mut ec));
+
+        assert!(!ec.overflow_flag, "no overflow for 1 - 1");
+        assert!(ec.carry_flag, "acd >= acs unsigned complements carry");
+        assert_eq!(ec.ac[0], 0);
+    }
 }

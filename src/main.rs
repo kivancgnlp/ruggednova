@@ -43,9 +43,9 @@ fn main() -> std::io::Result<()> {
     let linear_disassembler_mode = false;
     let instruction_limit = 1_000;
     let generate_trace_disassembly = true;
-    //ex.ip = 0o521;
+    ex.ip = 0o500;
     //ex.ip = 0o2531;
-    ex.ip = 0o4235; // Part I
+    //ex.ip = 0o4235; // Part I
 
     //ex.ip = 0o157;
 

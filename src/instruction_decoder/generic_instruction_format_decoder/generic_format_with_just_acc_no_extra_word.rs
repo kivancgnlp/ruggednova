@@ -92,15 +92,19 @@ pub(super) fn decode(mnemonic : &str, instruction_word: u16, ec: Option<&mut Exe
                 let dividend = ec.get_ac01_compound() as i32;   // 32-bit, AC0 high : AC1 low
                 let divisor  = ec.ac[target_acc] as i16 as i32; // 16-bit, sign extended
 
-                // The quotient bound is the real overflow test. A 32-bit dividend over a 16-bit
-                // divisor can easily produce a quotient that will not fit back into AC1, and the
-                // manual states the limit as |quotient| >= 2^15. i16::MIN is representable, so the
-                // rejected range is quotient > i16::MAX or quotient < i16::MIN.
+                // The quotient bound is the real overflow test: a 32-bit dividend over a 16-bit
+                // divisor can easily produce a quotient that will not fit back into AC1.
+                //
+                // The manual writes the limit as "the quotient >= 2^15", which reads as a MAGNITUDE
+                // bound rather than the signed i16 range. INS02 confirms it: the case at 04674
+                // divides 0x00020000 by -4, giving exactly -32768. That value is representable in
+                // i16, so a range check accepts it — but the tape's TCO at 04677 expects Overflow
+                // to be set and calls its error routine when it is not. So -32768 overflows too.
                 let overflow = if divisor == 0 {
                     true
                 } else {
                     let quot = dividend / divisor;
-                    quot > i16::MAX as i32 || quot < i16::MIN as i32
+                    quot >= 32768 || quot <= -32768
                 };
 
                 if overflow {
@@ -349,6 +353,30 @@ mod tests {
         decode("SDVD", with_ac(0o061377, 1), Some(&mut ec));
         assert_eq!(ec.ac[1] as i16, 1, "100 / 100");
         assert_eq!(ec.ac[0] as i16, 0);
+    }
+
+
+    /// INS02 at 04674: 0x00020000 / -4 == exactly -32768. That value fits in an i16, so a signed
+    /// RANGE check accepts it — but the tape's TCO at 04677 expects Overflow to be set. So the
+    /// manual's "quotient >= 2^15" is a magnitude bound, not a range bound.
+    #[test]
+    fn sdvd_treats_a_quotient_of_exactly_minus_2_to_the_15_as_overflow() {
+        let mut ec = ctx();
+        ec.ac[0] = 0x0002; ec.ac[1] = 0x0000;   // AC01 = 131072
+        ec.ac[3] = (-4_i16) as u16;
+        ec.overflow_flag = false;
+        decode("SDVD", with_ac(0o061377, 3), Some(&mut ec));
+        assert!(ec.carry_flag, "Carry set");
+        assert!(ec.overflow_flag, "Overflow set — |quotient| == 2^15");
+        assert_eq!(ec.get_ac01_compound(), 0x0002_0000, "AC01 restored");
+
+        // One less in magnitude must still succeed.
+        let mut ec = ctx();
+        ec.set_ac01_compound(32767 * 4);
+        ec.ac[3] = 4;
+        decode("SDVD", with_ac(0o061377, 3), Some(&mut ec));
+        assert!(!ec.carry_flag);
+        assert_eq!(ec.ac[1] as i16, 32767);
     }
 
     /// Manual p. 3-35: "If (AC0) >= (ac), unsigned, set Carry and proceed to the next instruction;
