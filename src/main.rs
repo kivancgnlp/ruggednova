@@ -45,8 +45,8 @@ fn main() -> std::io::Result<()> {
     let generate_trace_disassembly = true;
     //ex.ip = 0o521;
     //ex.ip = 0o2531;
-    //ex.ip = 0o4235;
-    ex.ip = 0o4247;
+    ex.ip = 0o4235; // Part I
+
     //ex.ip = 0o157;
 
 
