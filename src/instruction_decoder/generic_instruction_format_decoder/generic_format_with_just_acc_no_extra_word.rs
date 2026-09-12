@@ -65,16 +65,40 @@ pub(super) fn decode(mnemonic : &str, instruction_word: u16, ec: Option<&mut Exe
             }
 
             "UDVI" => {
-                let quot = ec.ac[1] / ec.ac[target_acc];
-                let rem = ec.ac[1] % ec.ac[target_acc];
+                let dividend = ec.ac[1];
+                let divisor  = ec.ac[target_acc];
 
-                ec.ac[0] = rem;
-                ec.ac[1] = quot;
+                if divisor == 0 {
+                    ec.carry_flag = true;            // accumulators unchanged
+                } else {
+                    ec.ac[0] = dividend % divisor;
+                    ec.ac[1] = dividend / divisor;
+                    ec.carry_flag = false;
+                }
+            }
 
-                // TODO :  Overflow occurs when the contents of ac are zero or when the divisor is in ACO
-                // and (ACO) is equal to one. If overflow occurs set Carry and leave all accumulators unchanged. If
-                // there is no overflow clear Carry and leave Overflow unchanged.
+            "SDVD" => {
+                // Read both operands before writing anything — target_acc may be 0 or 1,
+                // and AC0/AC1 are the destinations.
+                let dividend = ec.ac[1] as i16;
+                let divisor  = ec.ac[target_acc] as i16;
 
+                match dividend.checked_div(divisor) {
+                    // Overflow: divisor == 0, or -32768 / -1 (quotient +32768 has no i16).
+                    // Leave all accumulators unchanged, set Carry.
+                    None => {
+                        ec.carry_flag = true;
+                    }
+                    Some(quot) => {
+                        // Truncation toward zero; remainder takes the sign of the dividend.
+                        let rem = dividend.wrapping_rem(divisor);
+
+                        ec.ac[0] = rem  as u16;
+                        ec.ac[1] = quot as u16;
+
+                        ec.carry_flag = false;   // Overflow flag left untouched
+                    }
+                }
             }
 
             "TRAP" => {
@@ -143,9 +167,10 @@ pub(super) fn decode(mnemonic : &str, instruction_word: u16, ec: Option<&mut Exe
             }
 
             "SMPY" => {
-                // Signed multiply
-                let ac1 = ec.ac[1] as i32;
-                let signed_mult = ac1 * ec.ac[target_acc] as i32;
+                // Signed multiply: reinterpret the u16 bits as i16, sign-extend to i32, then multiply
+                let ac1 = ec.ac[1] as i16 as i32;
+                let acn = ec.ac[target_acc] as i16 as i32;
+                let signed_mult: i32 = ac1 * acn;
                 ec.set_ac01_compound(signed_mult as u32);
             }
 
