@@ -66,38 +66,46 @@ pub(super) fn execute_alu_op(acs_value:u16, acd_value:u16, carry_initial_setting
         AlcShiftField::S => (function_result.swap_bytes(), function_carry_sum),
     };
 
-    // The no-load (#) bit suppresses the Overflow update as well as Carry and acd.
+    // Overflow is STICKY: an ALC sets it when the operation overflows and never clears it.
+    // Only TCO (and IORST) clear it.
     //
-    // The instruction pages only name "Carry and (acd)" as unchanged when # is set, but INS02
-    // settles it. Its divide-by-zero case at 04632 runs SDVD (which must set Carry and Overflow),
-    // then four SUB# compare instructions, then TCO at 04643 expecting Overflow to still be set.
-    // Updating Overflow here unconditionally clears it on the first SUB# and sends the test to its
-    // error routine. That also makes sense of the idiom generally: SUB#/ADC# are how Nova code
-    // compares, and TCO would be unusable after a comparison if they clobbered Overflow.
-    if !no_load {
-        match function {
-            AlcFunctionField::ADD => {
-                ec.overflow_flag = check_overflow(acs_value, acd_value, function_result, true);
-            }
+    // Two diagnostics pin this down, and only this rule satisfies both:
+    //
+    //   INS64 group G, G44 at 003256 (listing page 0045):
+    //       SUBZR 1,1        ; AC1 = 100000
+    //       ADDZ# 1,1,SKP    ; "AN ALC# INSTR CAN ALSO SET OVF"
+    //       NOP
+    //       TCO              ; must NOT skip -> Overflow is set
+    //       JMP .+2
+    //       ?EHLT            ; "BUT DIDN'T"
+    //   so the no-load (#) bit does NOT suppress the Overflow update. It suppresses only
+    //   Carry and (acd), exactly as the instruction pages say.
+    //
+    //   INS02 at 04632: SDVD (sets Carry and Overflow), then four SUB# ac,ac,SZR accumulator
+    //   port checks, then TCO at 04643 which must NOT skip -> Overflow survived all four.
+    //   SUB# 0,0 does not overflow, so a non-overflowing ALC must leave Overflow alone rather
+    //   than clear it.
+    //
+    // The manual's wording agrees: instructions are documented as "set Carry and Overflow"
+    // (SDVD 3-35, LASH) or "Overflow is unchanged" (UDVD, UDVI) — never "clear Overflow".
+    // Clearing is what TCO is for.
+    let overflowed = match function {
+        AlcFunctionField::ADD => check_overflow(acs_value, acd_value, function_result, true),
 
-            AlcFunctionField::INC => {
-                ec.overflow_flag = check_overflow(acs_value, 1, function_result, true);
-            }
+        AlcFunctionField::INC => check_overflow(acs_value, 1, function_result, true),
 
-            AlcFunctionField::SUB | AlcFunctionField::ADC => {
-                ec.overflow_flag = check_overflow(acs_value, acd_value, function_result, false);
-            }
-
-            AlcFunctionField::NEG => {
-                ec.overflow_flag = acs_value == 0x8000;
-            }
-
-
-
-            _ => {
-                // Overflow flag not affected in logical operations other than add or sub
-            }
+        AlcFunctionField::SUB | AlcFunctionField::ADC => {
+            check_overflow(acs_value, acd_value, function_result, false)
         }
+
+        AlcFunctionField::NEG => acs_value == 0x8000,
+
+        // Overflow is not affected by the logical operations.
+        _ => false,
+    };
+
+    if overflowed {
+        ec.overflow_flag = true;
     }
 
     ec.zero_flag = shifter_result == 0;
@@ -181,11 +189,12 @@ mod no_load_overflow {
     use crate::instruction_decoder::alc_format_instruction_decoder;
     use crate::virtual_machine::ExecutionContext;
 
-    /// INS02's divide-by-zero case at 04632 runs SDVD (which sets Carry and Overflow), then four
-    /// SUB# compares, then TCO at 04643 expecting Overflow to still be set. The no-load bit has to
-    /// suppress the Overflow update the same way it suppresses Carry and acd.
+    /// INS02 at 04632 runs SDVD (which sets Carry and Overflow), then four `SUB# ac,ac,SZR`
+    /// accumulator port checks, then TCO at 04643 which must NOT skip — so Overflow has to
+    /// survive all four. `SUB# 0,0` does not overflow, and a non-overflowing ALC must leave
+    /// Overflow alone rather than clear it.
     #[test]
-    fn no_load_leaves_overflow_alone() {
+    fn a_non_overflowing_alc_does_not_clear_overflow() {
         let mut ec = ExecutionContext::new();
         ec.load_initial_memory(vec![0; 32]);
         ec.overflow_flag = true;
@@ -194,13 +203,13 @@ mod no_load_overflow {
         // SUB# AC0,AC0 SZR — 0x850c, the standard Nova compare idiom.
         alc_format_instruction_decoder::decode(0x850c, Some(&mut ec));
 
-        assert!(ec.overflow_flag, "# must leave Overflow unchanged");
+        assert!(ec.overflow_flag, "Overflow is sticky; nothing overflowed here");
         assert!(ec.carry_flag, "# must leave Carry unchanged");
     }
 
-    /// The same operation WITHOUT the no-load bit does update both.
+    /// The same holds without the no-load bit: Overflow is cleared by TCO, never by an ALC.
     #[test]
-    fn loading_form_still_updates_the_flags() {
+    fn the_loading_form_also_leaves_overflow_alone() {
         let mut ec = ExecutionContext::new();
         ec.load_initial_memory(vec![0; 32]);
         ec.overflow_flag = true;
@@ -210,8 +219,52 @@ mod no_load_overflow {
         // SUB AC0,AC0 SZR — 0x8504, same instruction with # clear.
         alc_format_instruction_decoder::decode(0x8504, Some(&mut ec));
 
-        assert!(!ec.overflow_flag, "no overflow for 1 - 1");
+        assert!(ec.overflow_flag, "1 - 1 does not overflow, so Overflow is untouched");
         assert!(ec.carry_flag, "acd >= acs unsigned complements carry");
         assert_eq!(ec.ac[0], 0);
+    }
+
+    /// INS64 group G, G44 at 003256:
+    ///
+    /// ```text
+    ///   003256 126620  SUBZR 1,1       ; AC1 = 0x8000
+    ///   003257 127031  ADDZ# 1,1,SKP   ; "AN ALC# INSTR CAN ALSO SET OVF"
+    ///   003260 000401  NOP
+    ///   003261 063401  TCO             ; must NOT skip
+    ///   003262 000402  JMP .+2
+    ///                  ?EHLT           ; "BUT DIDN'T"
+    /// ```
+    ///
+    /// 0x8000 + 0x8000 is a signed overflow. The no-load bit suppresses Carry and (acd) only —
+    /// Overflow is still set.
+    #[test]
+    fn no_load_does_not_suppress_setting_overflow() {
+        let mut ec = ExecutionContext::new();
+        ec.load_initial_memory(vec![0; 32]);
+        ec.overflow_flag = false;
+        ec.carry_flag = false;
+        ec.ac[1] = 0x8000;
+
+        // ADDZ# 1,1,SKP — octal 127031.
+        alc_format_instruction_decoder::decode(0o127031, Some(&mut ec));
+
+        assert!(ec.overflow_flag, "ADDZ# on 0x8000 + 0x8000 must set Overflow");
+        assert_eq!(ec.ac[1], 0x8000, "# must not write acd");
+        assert!(!ec.carry_flag, "# must not write Carry");
+    }
+
+    /// G46 at 003264 contrasts it: the corresponding MOVZL must NOT set Overflow, because
+    /// Overflow belongs to the adder, not the shifter.
+    #[test]
+    fn movzl_does_not_set_overflow() {
+        let mut ec = ExecutionContext::new();
+        ec.load_initial_memory(vec![0; 32]);
+        ec.overflow_flag = false;
+        ec.ac[1] = 0x8000;
+
+        // MOVZL 1,1 — octal 125120.
+        alc_format_instruction_decoder::decode(0o125120, Some(&mut ec));
+
+        assert!(!ec.overflow_flag, "a shift is not an arithmetic overflow");
     }
 }
