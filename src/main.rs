@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use crate::loaders::paper_tape_read_ab_file_reader::paper_tape_image_loader;
-use crate::loaders::octal_listing_to_binary_converter::{dump_memory_to_file, load_binary_file, parse_pdf_parts_to_bin_file};
+use crate::loaders::octal_listing_to_binary_converter::{dump_memory_to_file, load_binary_file, parse_ins02_pdf_parts_to_bin_file, parse_ins64_pdf_parts_to_bin_file};
 
 mod instruction_identifier;
 mod instruction_decoder;
@@ -34,7 +34,8 @@ fn main() -> std::io::Result<()> {
     //ex.load_initial_memory(Vec::from(boot_loader_memory));
 
 
-    let parsed_mem = parse_pdf_parts_to_bin_file()?;
+    //let parsed_mem = parse_ins02_pdf_parts_to_bin_file()?;
+    let parsed_mem = parse_ins64_pdf_parts_to_bin_file()?;
     //dump_memory_to_file("mem_dump.bin",&parsed_mem)?;
     ex.load_initial_memory(Vec::from(parsed_mem));
     
@@ -43,8 +44,9 @@ fn main() -> std::io::Result<()> {
     let linear_disassembler_mode = false;
     let instruction_limit = 1_000;
     let generate_trace_disassembly = true;
-    ex.ip = 0o500;
+    //ex.ip = 0o526; // Part A (INS64)
     //ex.ip = 0o2531;
+    ex.ip = 0o2533; //Part G (INS64)
     //ex.ip = 0o4235; // Part I
 
     //ex.ip = 0o157;

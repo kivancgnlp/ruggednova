@@ -39,8 +39,52 @@ pub(crate) fn dump_memory_to_file(file_name: &str, mem : &[u16;65536]) -> Result
     Ok(())
 }
 
+pub(crate) fn parse_ins64_pdf_parts_to_bin_file() -> Result<[u16; 65536], Error> {
 
-pub(crate) fn parse_pdf_parts_to_bin_file() -> Result<[u16; 65536], Error> {
+
+    let mut mem = [0_u16; 65536];
+    let mut prev_adr_word = 0_u16;
+
+    let mut mem_wr_map = HashMap::<u16,u16>::new();
+
+        let file_str = std::fs::read_to_string("Data/Diagnostic images/1664 INSTRUCTION TEST (INS64)/ins64_addr_word.txt")?;
+
+        for i in file_str.lines() {
+
+            //println!("{}", i);
+            let oct_val = i.split(" ").nth(1).and_then(|oct_str| {
+                u16::from_str_radix(oct_str, 8).ok()
+            });
+
+            let oct_adr = i.split(" ").nth(0).and_then(|oct_str| {
+                u16::from_str_radix(oct_str, 8).ok()
+            });
+
+
+            if let (Some(oct_adr),Some(oct_val))  = (oct_adr,oct_val) {
+                mem[oct_adr as usize] = oct_val;
+
+                if oct_adr != prev_adr_word {
+                    println!("Address {:#o} not consecutive with previous address {:#o}", oct_adr, prev_adr_word);
+                    prev_adr_word = oct_adr;
+                }
+                prev_adr_word +=1;
+
+                if mem_wr_map.contains_key(&oct_adr){
+                    println!("Address {:#o} previously written by {}, current line : {}",oct_adr, mem_wr_map.get(&oct_adr).unwrap(),i);
+                }else {
+                    mem_wr_map.insert(oct_adr, oct_val);
+                }
+            }else {
+                println!("Error parsing line : {}", i);
+            }
+
+        }
+
+    Ok(mem)
+}
+
+pub(crate) fn parse_ins02_pdf_parts_to_bin_file() -> Result<[u16; 65536], Error> {
     let parts = ["(0 - 232)","A", "B", "C", "D","E","F","G","H","I","J","K"];
 
     let mut mem = [0_u16; 65536];
