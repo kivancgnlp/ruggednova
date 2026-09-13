@@ -46,6 +46,8 @@ fn main() -> std::io::Result<()> {
     let generate_trace_disassembly = true;
     //ex.ip = 0o526; // Part A (INS64)
     //ex.ip = 0o2531;
+    //ex.ip = 0o60;   // stand-alone start: tests READS then stops at the one legal HALT (000504)
+    //ex.ip = 0o61;   // start of the whole program, skipping the READS/HALT switch test
     ex.ip = 0o2533; //Part G (INS64)
     //ex.ip = 0o4235; // Part I
 

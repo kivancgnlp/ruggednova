@@ -32,7 +32,6 @@ pub(crate) fn explain(mnemonic : &str, execution_context: Option<&mut ExecutionC
         "RTFNI" => "RETURN FROM NESTED INTERRUPT",
         "HALT"  => "Stop execution",
         "ECALL" => "Executive service call",
-        "Skip if ION clear" => "Skips if interrupts disabled",
         "PST" => "Push status",
         "CMVR" => "CLEAR MAP VIOLATION REGISTER",
         "CDMA" => "CLEAR DMA VIOLATION",
@@ -377,12 +376,6 @@ pub(crate) fn explain(mnemonic : &str, execution_context: Option<&mut ExecutionC
 
 
 
-            },
-
-            "Skip if ION clear" => {
-                if ec.ion == false {
-                    ec.ip += 1; // Alttaki artırma ile beraber 2 artacak ( sonraki inst gecilecek eğer ion değilse )
-                }
             },
 
             "DSPD" => {

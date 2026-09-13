@@ -33,10 +33,6 @@
     <instruction mnemonic="RTFNI" match_value="60C1" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="60301" origin="Rolm"/>
 
 
-    <instruction mnemonic="Skip if ION set" match_value="673F" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63477" origin="Rolm"/>
-    <instruction mnemonic="Skip if ION clear" match_value="677F" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63577" origin="Rolm"/>
-    <instruction mnemonic="Skip if power failing" match_value="67BF" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63677" origin="Rolm"/>
-    <instruction mnemonic="Skip if power OK" match_value="67FF" match_mask="FFFF" following_word_count="0" base_type="IO_SPECIAL" match_value_octal="63777" origin="Rolm"/>
 
 
 </root>

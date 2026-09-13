@@ -145,7 +145,13 @@ fn read_device_flags(io_device: u8, ec: &ExecutionContext) -> (bool, bool) {
 fn lookup_peripheral(device_code:u8) -> Option<&'static str> {
 
     match device_code {
-
+        // Table 3-2. Naming these keeps the trace readable now that the four CPU skips are decoded
+        // as ordinary SKPxx instructions rather than as prose pseudo-mnemonics.
+        0o00 => Some("PWRFL"),
+        0o01 => Some("MDV"),
+        0o10 => Some("TTI"),
+        0o11 => Some("TTO"),
+        0o77 => Some("CPU"),
         _ => None,
     }
 
@@ -174,7 +180,7 @@ mod tests {
     fn test_03(){
         let instruction_word = 0o60100;
         let decoded_instruction = super::decode(instruction_word,None);
-        assert_eq!(decoded_instruction,"?NIOS, 0x0")
+        assert_eq!(decoded_instruction,"?NIOS, 0x0 (PWRFL)")   // device 0 is Power Fail, Table 3-2
 
 
     }
