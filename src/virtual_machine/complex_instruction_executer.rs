@@ -200,6 +200,75 @@ pub(crate) fn word_seach_fs(ec: &mut ExecutionContext, mask:u16) -> Option<u16> 
 
 }
 
+/// LKLS is three words long, so "not found" is simply the next instruction and "found" skips one.
+pub(crate) const LKLS_EXIT_NOT_FOUND: u16 = 3;
+pub(crate) const LKLS_EXIT_FOUND: u16     = 4;
+
+/// LINKED LIST SEARCH, manual pp. 3-20..3-21. A three-word instruction:
+///
+/// ```text
+///   077200     LKLS
+///   <MASK>     at PC+1
+///   <OFFSET>   at PC+2
+/// ```
+///
+/// The assembler writes those as three separate lines; the manual says so explicitly.
+///
+///   AC0  lower limit of search value
+///   AC1  upper limit of search value
+///   AC2  address of the link word of the first block in the list
+///   AC3  receives the address of the link entry one prior to the matching link
+///
+/// The manual's own step:
+///
+/// > let result = ((PC) + 1) logically ANDed with ((AC2 + ((PC) + 2))). If (AC0) <= result <=
+/// > (AC1), increment (PC) by 4 and fetch the next instruction from that location. If ((AC2)) !=
+/// > 177777, let (AC3) = (AC2), let (AC2) = ((AC2)) and loop to the beginning of this description.
+///
+/// Three things that follow from the order of those sentences:
+///
+///   * The range test runs BEFORE the link is followed, so the first block is tested with AC2 and
+///     AC3 exactly as the caller left them.
+///   * `177777` in the link word marks the end of the list, and it is only consulted after the
+///     range test has already failed — so a match in the last block is still found.
+///   * AC3 is written only when a link is actually followed. On a match in the very first block it
+///     keeps whatever the caller put there, which is why the manual's note says to preload it:
+///     "LEF 3, pointer to first link / LDA 2, 0, 3".
+///
+/// The OFFSET is signed — "may be located positive or negative to the link address word" — so the
+/// checked word is reached by a wrapping add.
+///
+/// A list that links back on itself loops here forever, exactly as the hardware would; the manual
+/// offers no depth limit and relies on the instruction being interruptible.
+pub(crate) fn linked_list_search(ec: &mut ExecutionContext) -> u16 {
+
+    const END_OF_LIST: u16 = 0o177777;
+
+    let mask   = ec.read_word_from_mem_using_instruction_map_pc_relative(1, false);
+    let offset = ec.read_word_from_mem_using_instruction_map_pc_relative(2, false);
+
+    let lower = ec.ac[0];
+    let upper = ec.ac[1];
+
+    loop {
+        let checked_address = ec.ac[2].wrapping_add(offset);
+        let result = mask & ec.mapping_unit.read_word_from_memory(checked_address, true);
+
+        if result >= lower && result <= upper {
+            return LKLS_EXIT_FOUND;
+        }
+
+        let link = ec.mapping_unit.read_word_from_memory(ec.ac[2], true);
+        if link == END_OF_LIST {
+            // AC2 is left on the last block, as "Register Contents on Exit" requires.
+            return LKLS_EXIT_NOT_FOUND;
+        }
+
+        ec.ac[3] = ec.ac[2];
+        ec.ac[2] = link;
+    }
+}
+
 /// How many words the PC advances past a byte-string instruction. All four of COMB, COMBT, SRCB
 /// and SRCBT are multi-way: they report their result by choosing an exit rather than by setting a
 /// flag. See the "Summary of Exits" table on each instruction page.
@@ -800,5 +869,121 @@ mod deque_slot_pointers {
         deque_add_to_top(&mut ec);
         deque_remove_from_top(&mut ec);
         deque_remove_from_bottom(&mut ec);
+    }
+}
+
+#[cfg(test)]
+mod linked_list_search_tests {
+    use super::*;
+
+    /// Builds the list the manual's Figure 3-1 describes: blocks chained by a link word, with the
+    /// word to be checked at a constant offset from that link word, and 177777 marking the end.
+    ///
+    /// ```text
+    ///   0x20: link -> 0x30    0x21: 0x0005
+    ///   0x30: link -> 0x40    0x31: 0x0010
+    ///   0x40: link =  177777  0x41: 0x0020
+    /// ```
+    ///
+    /// The opcode sits at 0x100, so MASK is at 0x101 and OFFSET at 0x102.
+    fn list(mask: u16, offset: u16) -> ExecutionContext {
+        let mut ec = ExecutionContext::new();
+        ec.load_initial_memory(vec![0u16; 0x200]);
+
+        for (link_at, next, value) in [(0x20u16, 0x30u16, 0x0005u16),
+                                       (0x30,    0x40,    0x0010),
+                                       (0x40,    0o177777, 0x0020)] {
+            ec.mapping_unit.write_word_to_memory(link_at, next, true);
+            ec.mapping_unit.write_word_to_memory(link_at.wrapping_add(offset), value, true);
+        }
+
+        ec.ip = 0x100;
+        ec.mapping_unit.write_word_to_memory(0x101, mask, true);
+        ec.mapping_unit.write_word_to_memory(0x102, offset, true);
+        ec
+    }
+
+    /// "If (AC0) <= result <= (AC1), increment (PC) by 4."
+    #[test]
+    fn a_match_in_a_later_block_reports_both_links() {
+        let mut ec = list(0xffff, 1);
+        ec.ac[0] = 0x0010; ec.ac[1] = 0x0010;
+        ec.ac[2] = 0x20;                       // first link word
+        ec.ac[3] = 0xdead;
+
+        assert_eq!(linked_list_search(&mut ec), LKLS_EXIT_FOUND);
+        assert_eq!(ec.ac[2], 0x30, "AC2: link word of the block that matched");
+        assert_eq!(ec.ac[3], 0x20, "AC3: the link entry one prior");
+        assert_eq!(ec.ac[0], 0x0010, "AC0 unchanged");
+        assert_eq!(ec.ac[1], 0x0010, "AC1 unchanged");
+    }
+
+    /// The range test runs before any link is followed, so a match in the very first block leaves
+    /// AC3 exactly as the caller set it — the reason the manual's note tells you to preload it.
+    #[test]
+    fn a_match_in_the_first_block_leaves_ac3_alone() {
+        let mut ec = list(0xffff, 1);
+        ec.ac[0] = 0x0005; ec.ac[1] = 0x0005;
+        ec.ac[2] = 0x20;
+        ec.ac[3] = 0xdead;
+
+        assert_eq!(linked_list_search(&mut ec), LKLS_EXIT_FOUND);
+        assert_eq!(ec.ac[2], 0x20);
+        assert_eq!(ec.ac[3], 0xdead, "no link was followed, so AC3 is untouched");
+    }
+
+    /// The end-of-list word is consulted only after the range test has failed, so a match in the
+    /// LAST block is still found rather than being cut off by the 177777 sentinel.
+    #[test]
+    fn a_match_in_the_last_block_is_still_found() {
+        let mut ec = list(0xffff, 1);
+        ec.ac[0] = 0x0020; ec.ac[1] = 0x0020;
+        ec.ac[2] = 0x20;
+
+        assert_eq!(linked_list_search(&mut ec), LKLS_EXIT_FOUND);
+        assert_eq!(ec.ac[2], 0x40);
+    }
+
+    /// "AC2: Address of the link word of ... the last block if no matching entry is found."
+    #[test]
+    fn no_match_walks_to_the_end_of_the_list() {
+        let mut ec = list(0xffff, 1);
+        ec.ac[0] = 0x7000; ec.ac[1] = 0x7fff;
+        ec.ac[2] = 0x20;
+
+        assert_eq!(linked_list_search(&mut ec), LKLS_EXIT_NOT_FOUND);
+        assert_eq!(ec.ac[2], 0x40, "left on the last block");
+        assert_eq!(ec.ac[3], 0x30);
+    }
+
+    /// The search is against the MASKED word, so a mask can select a field within it.
+    #[test]
+    fn the_mask_is_applied_before_the_range_test() {
+        let mut ec = list(0x00f0, 1);
+        ec.ac[0] = 0x0010; ec.ac[1] = 0x0010;   // 0x0010 & 0x00f0 == 0x0010
+        ec.ac[2] = 0x20;
+
+        assert_eq!(linked_list_search(&mut ec), LKLS_EXIT_FOUND);
+        assert_eq!(ec.ac[2], 0x30);
+
+        // Without the mask 0x0020 would also be in range for [0x20,0x20]; with it, 0x0020 & 0x00f0
+        // is 0x0020 as well -- so pick a limit the mask genuinely changes.
+        let mut ec = list(0x000f, 1);
+        ec.ac[0] = 0x0005; ec.ac[1] = 0x0005;   // 0x0005 & 0x000f matches block 1
+        ec.ac[2] = 0x20;
+        assert_eq!(linked_list_search(&mut ec), LKLS_EXIT_FOUND);
+        assert_eq!(ec.ac[2], 0x20);
+    }
+
+    /// "The word to be checked ... may be located positive or negative to the link address word",
+    /// so the offset is signed and reached by a wrapping add.
+    #[test]
+    fn the_offset_may_be_negative() {
+        let mut ec = list(0xffff, 0xffff);      // -1
+        ec.ac[0] = 0x0010; ec.ac[1] = 0x0010;
+        ec.ac[2] = 0x20;
+
+        assert_eq!(linked_list_search(&mut ec), LKLS_EXIT_FOUND);
+        assert_eq!(ec.ac[2], 0x30, "checked word read from link - 1");
     }
 }

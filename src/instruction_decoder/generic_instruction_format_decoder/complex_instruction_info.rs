@@ -48,6 +48,7 @@ pub(crate) fn explain(mnemonic : &str, execution_context: Option<&mut ExecutionC
         "COMBT" => "COMPARE BYTE STRINGS WITH TERMINATOR",
         "SRCB" => "SEARCH BYTE STRING",
         "SRCBT" => "SEARCH BYTE STRING WITH TERMINATOR",
+        "LKLS" => "LINKED LIST SEARCH",
             _ => {
             unable = true;
             "?"}
@@ -498,6 +499,17 @@ pub(crate) fn explain(mnemonic : &str, execution_context: Option<&mut ExecutionC
             //   SRCB / SRCBT   PC+1 not found (or terminator reached), PC+2 found
             //
             // (3-9, 3-10, 3-14, 3-15.)
+            "LKLS" => {
+                // LINKED LIST SEARCH, 3-20..3-21. Three words long -- the MASK and OFFSET follow
+                // the opcode -- and two-way: PC+3 match not found, PC+4 match found. The executor
+                // reads its own operand words PC-relative, so `ec.ip` must still point at the
+                // opcode when it runs.
+                let exit = complex_instruction_executer::linked_list_search(ec);
+
+                ec.ip += exit;
+                auto_increment_ip = false;
+            }
+
             "COMB" | "COMBT" | "SRCB" | "SRCBT" => {
 
                 let exit = match mnemonic {
