@@ -40,30 +40,28 @@ impl Display for InstructionData{
     }
 }
 
-pub(crate) fn parse_instruction_informations<const Nova:bool>() -> Result<Vec<InstructionData>>{
+pub(crate) fn parse_instruction_informations<const NOVA_ONLY: bool>() -> Result<Vec<InstructionData>>{
 
     let mut all_instructions: Vec<InstructionData> = Vec::new();
 
     let path = Path::new("Data/Instruction_Informations/");
 
     for file in read_dir(path)?{
-        if let Ok(file) = file{
-            if file.path().is_file() && file.path().extension() == Some(std::ffi::OsStr::new("xml")){
-                let input_file = fs::File::open(file.path())?;
-                let buff_reader = BufReader::new(input_file);
-                //println!("Parsing file : {}, instruction count : {}", file.path().display(), all_instructions.len());
-                parse_file_instructions(buff_reader, &mut all_instructions)?;
-            }
+        let file = file?;
+        if file.path().is_file() && file.path().extension() == Some(std::ffi::OsStr::new("xml")){
+            let input_file = fs::File::open(file.path())?;
+            let buff_reader = BufReader::new(input_file);
+            parse_file_instructions(buff_reader, &mut all_instructions)?;
         }
-
     }
 
-    println!("{} instruction information parsed",all_instructions.len());
+    let parsed_count = all_instructions.len();
 
-    if Nova{
-        let filtered = all_instructions.iter().filter(|i| i.rolm_instruction == false).cloned().collect::<Vec<_>>();
-        return Ok(filtered);
+    if NOVA_ONLY{
+        all_instructions.retain(|i| !i.rolm_instruction);
     }
+
+    println!("{} instruction information parsed, {} kept", parsed_count, all_instructions.len());
 
     Ok(all_instructions)
 
