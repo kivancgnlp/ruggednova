@@ -46,11 +46,20 @@ pub(crate) fn decode(instruction_word: u16, execution_context: Option<&mut Execu
     let no_load = get_bits(instruction_word, 12, 12) == 1;
     let skip = AlcSkipField::from(get_bits(instruction_word, 13, 15) as u8);
 
-    let mut ambiguous_instruction = false;
-    if no_load && skip == AlcSkipField::NoSkip{
+    // An ALC that both suppresses the load and never skips computes a result, stores it nowhere,
+    // and cannot branch — a legal no-op that the 1969 Nova left free. Every descendant filled this
+    // hole with its own extended instructions, so reaching THIS decoder with the hole set means no
+    // extended-instruction table entry matched, i.e. the word is one of Appendix D's unimplemented
+    // codes. On real hardware that raises the Unimplemented Instruction Trap rather than executing
+    // as an ALC.
+    //
+    // Instruction identification is most-specific-mask-wins, so a genuine ROLM extended instruction
+    // never arrives here; it is decoded by its own table row.
+    let unimplemented_instruction = no_load && skip == AlcSkipField::NoSkip;
+    if unimplemented_instruction {
         eprintln!("No load and no skip in ALC instruction, possible misinterpretation of higher instruction version");
-        ambiguous_instruction = true;
     }
+    let ambiguous_instruction = unimplemented_instruction;
 
 
     let mut instruction_asm_str = String::new();
@@ -94,6 +103,17 @@ pub(crate) fn decode(instruction_word: u16, execution_context: Option<&mut Execu
     }
 
     if let Some(ec) = execution_context {
+
+        if unimplemented_instruction {
+            // Section 2.29. The instruction must NOT execute — the trap replaces it. `ec.ip` still
+            // points at this instruction here, which is exactly the address location 42 wants.
+            //
+            // INS64 group Q, Q02A at 006057, plants `155130` ("AN UNIMP. INSTR. MOVZL# 2,3") for
+            // precisely this and then checks that its handler ran once and that location 42 held
+            // 006057 before the handler's ISZ stepped it to 006060.
+            ec.unimplemented_instruction_trap(ec.ip);
+            return instruction_asm_str;
+        }
 
         let (acs_value, acd_value) = (ec.ac[source_acc as usize], ec.ac[dest_acc.clone()  as usize]);
 
@@ -445,4 +465,74 @@ mod tests {
 
 
 
+}
+#[cfg(test)]
+mod unimplemented_instruction_trap {
+    use super::*;
+
+    /// `155130` — the word INS64 group Q plants at Q02A (006057) and calls
+    /// "AN UNIMP. INSTR. MOVZL# 2,3". An ALC with the no-load bit set and no skip field.
+    const UNIMPLEMENTED_ALC: u16 = 0o155130;
+
+    fn machine_with_a_handler_at(vector_word: u16) -> ExecutionContext {
+        let mut ec = ExecutionContext::new();
+        let mut mem = vec![0u16; 0o100];
+        mem[0o43] = vector_word;
+        ec.load_initial_memory(mem);
+        ec.ip = 0o6057;
+        ec
+    }
+
+    /// Section 2.29: "the address of the unimplemented instruction will be stored in location 42,
+    /// and JMP to the address stored in location 43 will occur."
+    ///
+    /// Location 42 gets the address OF the instruction, not of the next one — the opposite of the
+    /// Stack Overflow Trap. Group Q's handler does `ISZ 42` to step past it.
+    #[test]
+    fn an_unimplemented_alc_traps_instead_of_executing() {
+        let mut ec = machine_with_a_handler_at(0o6046);
+        ec.ac[3] = 0x1234;
+
+        decode(UNIMPLEMENTED_ALC, Some(&mut ec));
+
+        assert_eq!(ec.ip, 0o6046, "JMP to the address in location 43");
+        assert_eq!(ec.mapping_unit.read_word_from_memory(0o42, true), 0o6057,
+                   "location 42 holds the address OF the unimplemented instruction");
+        assert_eq!(ec.ac[3], 0x1234, "the instruction must not execute");
+    }
+
+    /// Group Q builds its vector as `Q97 | 100000` at 006041 and stores that in location 43, so
+    /// reaching the handler needs one level of indirection resolved (section 2.17: with expanded
+    /// memory disabled, bit 0 is the indirect bit).
+    #[test]
+    fn the_trap_vector_resolves_indirection_when_expanded_memory_is_off() {
+        let mut ec = machine_with_a_handler_at(0x8000 | 0o50);
+        ec.mapping_unit.write_word_to_memory(0o50, 0o6046, true);
+
+        decode(UNIMPLEMENTED_ALC, Some(&mut ec));
+
+        assert_eq!(ec.ip, 0o6046, "one level of indirection followed");
+    }
+
+    /// With expanded memory enabled there is no indirect bit — all 16 bits are address.
+    #[test]
+    fn the_trap_vector_is_taken_whole_when_expanded_memory_is_on() {
+        let mut ec = machine_with_a_handler_at(0x8000 | 0o50);
+        ec.mapping_unit.msr.executive_expanded_memory = true;
+
+        decode(UNIMPLEMENTED_ALC, Some(&mut ec));
+
+        assert_eq!(ec.ip, 0x8000 | 0o50, "bit 0 is part of the address, not an indirect flag");
+    }
+
+    /// An ALC with the no-load bit but a real skip field is an ordinary compare, not a hole.
+    #[test]
+    fn a_no_load_alc_with_a_skip_field_is_not_a_trap() {
+        let mut ec = machine_with_a_handler_at(0o6046);
+        ec.ac[0] = 0;
+
+        decode(0x850c, Some(&mut ec));   // SUB# AC0,AC0 SZR
+
+        assert_ne!(ec.ip, 0o6046, "SUB# ... SZR is a normal instruction");
+    }
 }

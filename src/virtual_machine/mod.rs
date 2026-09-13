@@ -180,6 +180,60 @@ impl ExecutionContext{
         // overflowed, ION is cleared and the Stack Overflow Trap Sequence is initiated").
     }
 
+    /// Section 2.29, the Unimplemented Instruction Trap:
+    ///
+    /// > The Unimplemented Instruction Trap will occur upon execution of an instruction code that
+    /// > is undefined or unimplemented (see Appendix D). Next, the address of the unimplemented
+    /// > instruction will be stored in location 42, and JMP to the address stored in location 43
+    /// > will occur. ... If the processor is in User Mode, the trap does not cause a switch to
+    /// > Executive Mode.
+    ///
+    /// Note the contrast with the Stack Overflow Trap: that one stores the address of the NEXT
+    /// instruction in location 44, this one stores the address of the offending instruction
+    /// itself, so the handler can look at it. INS64 group Q relies on the difference — its handler
+    /// does `ISZ 42` to step past the bad word before `JMP @42`.
+    ///
+    /// `instruction_address` is the address of the unimplemented instruction, not of whatever
+    /// follows it.
+    pub(crate) fn unimplemented_instruction_trap(&mut self, instruction_address: u16) {
+
+        self.mapping_unit.set_unimplemented_instruction_address(instruction_address);
+
+        let vector = self.mapping_unit.get_unimplemented_instruction_handler_address();
+        self.ip = self.resolve_indirect_chain(vector);
+    }
+
+    /// Follow an indirect chain starting from an already-fetched word.
+    ///
+    /// Section 2.17: with expanded memory disabled, bit 0 of an address word is the indirect bit
+    /// rather than part of the address, so a word with bit 0 set means "the address is in the word
+    /// this points at". Section 1.6 faults a chain deeper than 16 levels.
+    ///
+    /// INS64 group Q needs this for the trap vector: at 006041 it builds `Q97 | 100000` and stores
+    /// that in location 43, so reaching the handler requires resolving one level of indirection
+    /// rather than jumping to 106053.
+    fn resolve_indirect_chain(&mut self, first_word: u16) -> u16 {
+
+        const MAX_INDIRECTION_LEVELS: usize = 16;   // section 1.6
+
+        let mut word = first_word;
+
+        if self.is_expanded_memory_for_the_current_user() {
+            // With EM enabled the whole 16 bits are address; there is no indirect bit to follow.
+            return word;
+        }
+
+        for _ in 0..MAX_INDIRECTION_LEVELS {
+            if word & 0x8000 == 0 {
+                return word;
+            }
+            word = self.mapping_unit.read_word_from_memory(word & 0x7fff, true);
+        }
+
+        eprintln!("Indirect chain deeper than {} levels while resolving a trap vector", MAX_INDIRECTION_LEVELS);
+        word & 0x7fff
+    }
+
     pub(crate) fn pop_a_single_word_from_the_stack(&mut self) -> u16 {
 
         let adr = self.stack_access_address(self.sp);

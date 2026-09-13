@@ -138,8 +138,19 @@ impl InstructionDecoder {
                 continue; // ignore in linear disassembler mode
             }
 
-            if(instruction_resolve_result.is_none() && self.linear_disassembler_mode == false){
-                return Err(Error::other("Unidentified instruction"));
+            if instruction_resolve_result.is_none() && self.linear_disassembler_mode == false {
+                // Section 2.29: "upon execution of an instruction code that is undefined or
+                // unimplemented". A word that matches no table row is undefined, so the machine
+                // traps rather than the emulator giving up. The trap needs a handler address in
+                // location 43 — if page zero is empty this jumps to 0, which shows up in the trace
+                // as a runaway rather than as a silent stop.
+                eprintln!("Undefined instruction {:#06o} at IP {:#06o}: unimplemented instruction trap",
+                          instruction_word, self.ec.ip);
+                let faulting_address = self.ec.ip;
+                self.ec.unimplemented_instruction_trap(faulting_address);
+                instruction_counter += 1;
+                if instruction_counter >= instruction_limit { return Ok(()); }
+                continue;
             }
 
             let instruction = instruction_resolve_result.unwrap();

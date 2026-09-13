@@ -455,6 +455,21 @@ impl MappingUnit {
     const STACK_OVERFLOW_RETURN_LOCATION: usize = 0o44;
     const STACK_OVERFLOW_HANDLER_LOCATION: usize = 0o45;
 
+    /// Table 2-2 reserves 42 and 43 for the Unimplemented Instruction Trap, in the same absolute
+    /// block as 44/45. Note the asymmetry with the stack trap: location 42 receives the address
+    /// **of the unimplemented instruction itself**, not of the next one (section 2.29), because
+    /// the handler is expected to inspect the offending word before stepping past it.
+    const UNIMPLEMENTED_INSTRUCTION_LOCATION: usize = 0o42;
+    const UNIMPLEMENTED_INSTRUCTION_HANDLER_LOCATION: usize = 0o43;
+
+    pub(crate) fn set_unimplemented_instruction_address(&mut self, address:u16) {
+        self.mem[Self::UNIMPLEMENTED_INSTRUCTION_LOCATION] = address;
+    }
+
+    pub(crate) fn get_unimplemented_instruction_handler_address(&self) -> u16 {
+        self.mem[Self::UNIMPLEMENTED_INSTRUCTION_HANDLER_LOCATION]
+    }
+
     pub(crate) fn set_stack_overflow_return_address(&mut self, address:u16) {
         self.mem[Self::STACK_OVERFLOW_RETURN_LOCATION] = address;
     }
