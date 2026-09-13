@@ -44,6 +44,10 @@ pub(crate) fn explain(mnemonic : &str, execution_context: Option<&mut ExecutionC
         "RTD" => "REMOVE FROM TOP OF DEQUE",
         "MOVBT" => "MOVE BYTE STRING WITH TERMINATOR",
         "MOVB" => "MOVE BYTE STRING",
+        "COMB" => "COMPARE BYTE STRINGS",
+        "COMBT" => "COMPARE BYTE STRINGS WITH TERMINATOR",
+        "SRCB" => "SEARCH BYTE STRING",
+        "SRCBT" => "SEARCH BYTE STRING WITH TERMINATOR",
             _ => {
             unable = true;
             "?"}
@@ -485,6 +489,26 @@ pub(crate) fn explain(mnemonic : &str, execution_context: Option<&mut ExecutionC
             "MOVB" => {
 
                 complex_instruction_executer::move_byte_string(ec);
+            }
+
+            // The four multi-way byte-string instructions. Each reports its result by choosing an
+            // exit rather than by setting a flag, so they advance the PC themselves:
+            //
+            //   COMB / COMBT   PC+1 equal, PC+2 string 1 < string 2, PC+3 string 1 > string 2
+            //   SRCB / SRCBT   PC+1 not found (or terminator reached), PC+2 found
+            //
+            // (3-9, 3-10, 3-14, 3-15.)
+            "COMB" | "COMBT" | "SRCB" | "SRCBT" => {
+
+                let exit = match mnemonic {
+                    "COMB"  => complex_instruction_executer::compare_byte_strings(ec),
+                    "COMBT" => complex_instruction_executer::compare_byte_strings_with_terminator(ec),
+                    "SRCB"  => complex_instruction_executer::search_byte_string(ec),
+                    _       => complex_instruction_executer::search_byte_string_with_terminator(ec),
+                };
+
+                ec.ip += exit;
+                auto_increment_ip = false;
             }
 
 
