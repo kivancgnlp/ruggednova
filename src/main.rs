@@ -42,7 +42,7 @@ fn main() -> std::io::Result<()> {
 
 
     let linear_disassembler_mode = false;
-    let instruction_limit = 10_000;
+    let instruction_limit = 40_000;
     let generate_trace_disassembly = true;
     //ex.ip = 0o526; // Part A (INS64)
     //ex.ip = 0o2531;

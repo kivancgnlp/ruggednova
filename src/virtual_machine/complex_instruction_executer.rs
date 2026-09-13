@@ -18,14 +18,20 @@ const NEXT_BOTTOM_ELEMENT_OFFSET:u16= 3;
 
 
 
+/// The storage area begins four words past the header: manual p. 3-24, "set ((AC2) + ((AC2) + 3)
+/// + 4) = (AC0)". Wrapping, because a zero-length deque can leave a slot pointer at 0xffff.
+fn slot_address(header_base: u16, slot_index: u16) -> u16 {
+    header_base.wrapping_add(4).wrapping_add(slot_index)
+}
+
 fn read_deque_header(ec: &mut ExecutionContext) -> DequeInfo {
 
     let info_header_base_adr = ec.ac[2];
 
-    let capacity = ec.mapping_unit.read_word_from_memory(info_header_base_adr + DEQUE_CAPACITY_OFFSET,true);
-    let occupancy = ec.mapping_unit.read_word_from_memory(info_header_base_adr + DEQUE_OCCUPANCY_OFFSET,true);
-    let current_top_element_index = ec.mapping_unit.read_word_from_memory(info_header_base_adr + CURRENT_TOP_ELEMENT_OFFSET,true);
-    let next_bottom_element_index = ec.mapping_unit.read_word_from_memory(info_header_base_adr + NEXT_BOTTOM_ELEMENT_OFFSET,true);
+    let capacity = ec.mapping_unit.read_word_from_memory(info_header_base_adr.wrapping_add(DEQUE_CAPACITY_OFFSET),true);
+    let occupancy = ec.mapping_unit.read_word_from_memory(info_header_base_adr.wrapping_add(DEQUE_OCCUPANCY_OFFSET),true);
+    let current_top_element_index = ec.mapping_unit.read_word_from_memory(info_header_base_adr.wrapping_add(CURRENT_TOP_ELEMENT_OFFSET),true);
+    let next_bottom_element_index = ec.mapping_unit.read_word_from_memory(info_header_base_adr.wrapping_add(NEXT_BOTTOM_ELEMENT_OFFSET),true);
 
     DequeInfo {capacity, occupancy, current_top_element_index, next_bottom_element_index }
 
@@ -35,10 +41,10 @@ fn update_deque_header(ec: &mut ExecutionContext, deque_info: DequeInfo)  {
 
     let info_header_base_adr = ec.ac[2];
 
-    ec.mapping_unit.write_word_to_memory(info_header_base_adr + DEQUE_CAPACITY_OFFSET,deque_info.capacity,true);
-    ec.mapping_unit.write_word_to_memory(info_header_base_adr + DEQUE_OCCUPANCY_OFFSET,deque_info.occupancy,true);
-    ec.mapping_unit.write_word_to_memory(info_header_base_adr + CURRENT_TOP_ELEMENT_OFFSET, deque_info.current_top_element_index, true);
-    ec.mapping_unit.write_word_to_memory(info_header_base_adr + NEXT_BOTTOM_ELEMENT_OFFSET, deque_info.next_bottom_element_index, true);
+    ec.mapping_unit.write_word_to_memory(info_header_base_adr.wrapping_add(DEQUE_CAPACITY_OFFSET),deque_info.capacity,true);
+    ec.mapping_unit.write_word_to_memory(info_header_base_adr.wrapping_add(DEQUE_OCCUPANCY_OFFSET),deque_info.occupancy,true);
+    ec.mapping_unit.write_word_to_memory(info_header_base_adr.wrapping_add(CURRENT_TOP_ELEMENT_OFFSET), deque_info.current_top_element_index, true);
+    ec.mapping_unit.write_word_to_memory(info_header_base_adr.wrapping_add(NEXT_BOTTOM_ELEMENT_OFFSET), deque_info.next_bottom_element_index, true);
 
 }
 
@@ -47,20 +53,35 @@ fn dump_deque_header(ec: &mut ExecutionContext) {
     println!("Q info : {:?}",q_info);
 }
 
-fn decrement_by_checking_capacity_bounds(index: &mut u16, capacity: u16) {
+/// Step a deque slot pointer backwards, wrapping at the top of the circular buffer.
+///
+/// Manual p. 3-24 (ATD) and p. 3-25 (RBD) both state it the same way:
+/// "If ((AC2) + 2) = 0, set ((AC2) + 2) = ((AC2)). Decrement ((AC2) + 2) by 1."
+///
+/// Written exactly as the manual has it rather than as `index = capacity - 1`, which is
+/// equivalent for a deque of non-zero length but underflows when the length is zero. INS64's
+/// IDEA at 011202 drives all four deque instructions at a zero-length deque on purpose, and
+/// that underflow is what used to panic the run.
+fn retreat_slot_pointer(index: &mut u16, capacity: u16) {
 
-    if *index > 0 {
-        *index -= 1;
-    }else {
-        *index = capacity - 1;
+    if *index == 0 {
+        *index = capacity;
     }
+    *index = index.wrapping_sub(1);
 }
 
-fn increment_by_checking_capacity_bounds(index: &mut u16, capacity: u16) {
+/// Step a deque slot pointer forwards, wrapping at the end of the circular buffer.
+///
+/// Manual p. 3-24 (ABD): "Increment ((AC2) + 3) by 1. Then if ((AC2) + 3) = ((AC2)), set
+/// ((AC2) + 3) = 0." RTD on p. 3-26 says the same for the top pointer.
+///
+/// Note the wrap test is an equality against the LENGTH after incrementing, not a comparison
+/// against length - 1 before it. Same result for a well-formed deque, no underflow for a
+/// degenerate one.
+fn advance_slot_pointer(index: &mut u16, capacity: u16) {
 
-    if *index < capacity - 1 {
-        *index += 1;
-    }else {
+    *index = index.wrapping_add(1);
+    if *index == capacity {
         *index = 0;
     }
 }
@@ -74,11 +95,11 @@ pub(crate) fn deque_remove_from_bottom(ec: &mut ExecutionContext) -> Option<u16>
 
     let info_header_base_adr = ec.ac[2];
 
-    decrement_by_checking_capacity_bounds(&mut deque_info.next_bottom_element_index,deque_info.capacity);
-    let read_element = ec.mapping_unit.read_word_from_memory(info_header_base_adr + 4 + deque_info.next_bottom_element_index, true);
+    retreat_slot_pointer(&mut deque_info.next_bottom_element_index,deque_info.capacity);
+    let read_element = ec.mapping_unit.read_word_from_memory(slot_address(info_header_base_adr, deque_info.next_bottom_element_index), true);
 
 
-    deque_info.occupancy -= 1;
+    deque_info.occupancy = deque_info.occupancy.wrapping_sub(1);
 
 
     update_deque_header(ec, deque_info);
@@ -96,13 +117,13 @@ pub(crate) fn deque_add_to_bottom(ec: &mut ExecutionContext) -> bool{
     let info_header_base_adr = ec.ac[2];
     let element_to_write = ec.ac[0];
 
-    ec.mapping_unit.write_word_to_memory(info_header_base_adr + 4 + deque_info.next_bottom_element_index, element_to_write, true);
-    increment_by_checking_capacity_bounds(&mut deque_info.next_bottom_element_index, deque_info.capacity);
+    ec.mapping_unit.write_word_to_memory(slot_address(info_header_base_adr, deque_info.next_bottom_element_index), element_to_write, true);
+    advance_slot_pointer(&mut deque_info.next_bottom_element_index, deque_info.capacity);
 
 
 
 
-    deque_info.occupancy += 1;
+    deque_info.occupancy = deque_info.occupancy.wrapping_add(1);
 
 
     update_deque_header(ec, deque_info);
@@ -122,10 +143,10 @@ pub(crate) fn deque_add_to_top(ec: &mut ExecutionContext) -> bool{
     let info_header_base_adr = ec.ac[2];
     let element_to_write = ec.ac[0];
 
-    decrement_by_checking_capacity_bounds(&mut deque_info.current_top_element_index, deque_info.capacity);
-    ec.mapping_unit.write_word_to_memory(info_header_base_adr + 4 + deque_info.current_top_element_index, element_to_write, true);
+    retreat_slot_pointer(&mut deque_info.current_top_element_index, deque_info.capacity);
+    ec.mapping_unit.write_word_to_memory(slot_address(info_header_base_adr, deque_info.current_top_element_index), element_to_write, true);
 
-    deque_info.occupancy += 1;
+    deque_info.occupancy = deque_info.occupancy.wrapping_add(1);
 
 
     update_deque_header(ec, deque_info);
@@ -142,10 +163,10 @@ pub(crate) fn deque_remove_from_top(ec: &mut ExecutionContext) -> Option<u16>{
 
     let info_header_base_adr = ec.ac[2];
 
-    let read_element = ec.mapping_unit.read_word_from_memory(info_header_base_adr + 4 + deque_info.current_top_element_index, true);
-    increment_by_checking_capacity_bounds(&mut deque_info.current_top_element_index,deque_info.capacity);
+    let read_element = ec.mapping_unit.read_word_from_memory(slot_address(info_header_base_adr, deque_info.current_top_element_index), true);
+    advance_slot_pointer(&mut deque_info.current_top_element_index,deque_info.capacity);
 
-    deque_info.occupancy -= 1;
+    deque_info.occupancy = deque_info.occupancy.wrapping_sub(1);
 
 
     update_deque_header(ec, deque_info);
@@ -700,5 +721,84 @@ mod byte_string_instructions {
         ec.ac[2] = 0xffff;
         increment_byte_address(&mut ec, 2);
         assert_eq!(ec.br[0], 0x0000);
+    }
+}
+
+#[cfg(test)]
+mod deque_slot_pointers {
+    use super::*;
+
+    /// Manual p. 3-24 (ABD) and p. 3-26 (RTD): "Increment ((AC2) + 3) by 1. Then if ((AC2) + 3) =
+    /// ((AC2)), set ((AC2) + 3) = 0." The wrap is an equality against the LENGTH after the
+    /// increment, not a comparison against length - 1 before it.
+    #[test]
+    fn advancing_wraps_at_the_end_of_the_buffer() {
+        let mut i = 0;
+        for expected in [1, 2, 3, 4, 0, 1] {
+            advance_slot_pointer(&mut i, 5);
+            assert_eq!(i, expected);
+        }
+    }
+
+    /// Manual p. 3-24 (ATD) and p. 3-25 (RBD): "If ((AC2) + 2) = 0, set ((AC2) + 2) = ((AC2)).
+    /// Decrement ((AC2) + 2) by 1."
+    #[test]
+    fn retreating_wraps_at_the_start_of_the_buffer() {
+        let mut i = 2;
+        for expected in [1, 0, 4, 3] {
+            retreat_slot_pointer(&mut i, 5);
+            assert_eq!(i, expected);
+        }
+    }
+
+    /// A zero-length deque is the degenerate case INS64's IDEA at 011202 drives on purpose, and
+    /// the old `capacity - 1` formulation panicked on it. Neither helper may underflow.
+    #[test]
+    fn a_zero_length_deque_does_not_underflow() {
+        let mut i = 0;
+        advance_slot_pointer(&mut i, 0);
+        assert_eq!(i, 1, "nothing to wrap against");
+
+        let mut i = 0;
+        retreat_slot_pointer(&mut i, 0);
+        assert_eq!(i, 0xffff, "wraps rather than panicking");
+    }
+
+    fn deque_at(ec: &mut ExecutionContext, base: u16, length: u16, in_use: u16, top: u16, bottom: u16) {
+        ec.ac[2] = base;
+        ec.mapping_unit.write_word_to_memory(base, length, true);
+        ec.mapping_unit.write_word_to_memory(base + 1, in_use, true);
+        ec.mapping_unit.write_word_to_memory(base + 2, top, true);
+        ec.mapping_unit.write_word_to_memory(base + 3, bottom, true);
+    }
+
+    /// A properly initialised zero-length deque is both full and empty, so every one of the four
+    /// instructions takes its error exit — which is exactly what IDEA's header comment says it
+    /// expects: "ISSUES ALL FOUR DEQUE INSTRUCTIONS EXPECTING TO TAKE THE ERROR EXITS IN EACH
+    /// CASE".
+    #[test]
+    fn every_operation_on_a_zero_length_deque_takes_the_error_exit() {
+        let mut ec = ExecutionContext::new();
+        ec.load_initial_memory(vec![0u16; 0x40]);
+        deque_at(&mut ec, 0x10, 0, 0, 0, 0);
+
+        assert!(!deque_add_to_top(&mut ec), "full");
+        assert!(!deque_add_to_bottom(&mut ec), "full");
+        assert!(deque_remove_from_top(&mut ec).is_none(), "empty");
+        assert!(deque_remove_from_bottom(&mut ec).is_none(), "empty");
+    }
+
+    /// And a deque whose header is inconsistent — length zero but slots claimed in use — must
+    /// still not panic. This is the state the run actually reached before the fix.
+    #[test]
+    fn an_inconsistent_zero_length_header_does_not_panic() {
+        let mut ec = ExecutionContext::new();
+        ec.load_initial_memory(vec![0u16; 0x40]);
+        deque_at(&mut ec, 0x10, 0, 2, 4, 1);
+
+        deque_add_to_bottom(&mut ec);
+        deque_add_to_top(&mut ec);
+        deque_remove_from_top(&mut ec);
+        deque_remove_from_bottom(&mut ec);
     }
 }
