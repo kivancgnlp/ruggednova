@@ -65,15 +65,43 @@ pub(super) fn decode(mnemonic : &str, instruction_word: u16, ec: Option<&mut Exe
             }
 
             "UDVI" => {
+                // UNSIGNED INTEGER DIVIDE, manual p. 3-36.
+                //   "Divide the unsigned integer in AC1 by (ac). Set (AC0) = remainder, set (AC1)
+                //    = quotient. Check for overflow. Overflow occurs when the contents of ac are
+                //    zero or when the divisor is in AC0 and (AC0) is equal to one. If overflow
+                //    occurs set Carry and leave all accumulators unchanged. If there is no
+                //    overflow clear Carry and leave Overflow unchanged."
+                //
+                // Note the dividend is the 16-bit AC1, not the double word AC01 that SDVD and UDVD
+                // take. No quotient bound is needed: a 16-bit dividend over a non-zero divisor
+                // always fits in 16 bits.
                 let dividend = ec.ac[1];
                 let divisor  = ec.ac[target_acc];
 
-                if divisor == 0 {
-                    ec.carry_flag = true;            // accumulators unchanged
+                // The second clause looks like a microcode artifact — dividing by one cannot
+                // overflow arithmetically — and this was left unimplemented as open question X6
+                // with a note not to guess at it. INS64 group I settles it at 005172:
+                //
+                //     005171  MOVZ  2,2
+                //     005172  UDVI  0        ; the divisor register IS AC0, and (AC0) == 1
+                //     005173  MOV#  2,2,SNC  ; must skip, so Carry has to be set
+                //     005174  ?EHLT
+                //
+                // It makes sense once you notice AC0 is the remainder destination: when AC0 is
+                // also the divisor, the microcode has nowhere to keep the divisor while it writes
+                // the remainder. The hardware declines rather than producing a wrong answer.
+                //
+                // It is specifically (AC0) == 1, not any divisor of 1: `UDVI 2` with AC2 == 1 is a
+                // perfectly ordinary divide.
+                let divisor_register_is_ac0 = target_acc == 0;
+                let overflow = divisor == 0 || (divisor_register_is_ac0 && divisor == 1);
+
+                if overflow {
+                    ec.carry_flag = true;            // all accumulators unchanged, Overflow too
                 } else {
                     ec.ac[0] = dividend % divisor;
                     ec.ac[1] = dividend / divisor;
-                    ec.carry_flag = false;
+                    ec.carry_flag = false;           // Overflow unchanged
                 }
             }
 
@@ -427,6 +455,60 @@ mod tests {
         assert_eq!(ec.ac[1], 12);
         assert_eq!(ec.ac[0], 34);
         assert!(!ec.carry_flag);
+    }
+
+    /// Manual p. 3-36, UDVI's second overflow clause: "Overflow occurs when the contents of ac are
+    /// zero **or when the divisor is in AC0 and (AC0) is equal to one**."
+    ///
+    /// This was open question X6 — the wording looks like a microcode artifact, since dividing by
+    /// one cannot overflow arithmetically. INS64 group I settles it at 005172:
+    ///
+    /// ```text
+    ///   005171  MOVZ  2,2
+    ///   005172  UDVI  0        ; the divisor register IS AC0, and (AC0) == 1
+    ///   005173  MOV#  2,2,SNC  ; must skip, so Carry has to be set
+    ///   005174  ?EHLT
+    /// ```
+    #[test]
+    fn udvi_overflows_when_the_divisor_register_is_ac0_holding_one() {
+        let mut ec = ctx();
+        ec.ac[0] = 1;
+        ec.ac[1] = 1234;
+        ec.overflow_flag = true;
+
+        decode("UDVI", with_ac(0o063201, 0), Some(&mut ec));
+
+        assert!(ec.carry_flag, "divisor in AC0 equal to one must set Carry");
+        assert_eq!(ec.ac[0], 1, "all accumulators unchanged");
+        assert_eq!(ec.ac[1], 1234);
+        assert!(ec.overflow_flag, "Overflow is unchanged either way");
+    }
+
+    /// It is specifically (AC0) == 1 with AC0 as the divisor register. A divisor of one in any
+    /// OTHER accumulator is an ordinary divide.
+    #[test]
+    fn udvi_dividing_by_one_in_another_accumulator_is_ordinary() {
+        let mut ec = ctx();
+        ec.ac[1] = 1234; ec.ac[2] = 1;
+
+        decode("UDVI", with_ac(0o063201, 2), Some(&mut ec));
+
+        assert!(!ec.carry_flag, "no overflow when the divisor register is not AC0");
+        assert_eq!(ec.ac[1], 1234, "quotient");
+        assert_eq!(ec.ac[0], 0, "remainder");
+    }
+
+    /// AC0 as the divisor register is fine for any other value — only one is special.
+    #[test]
+    fn udvi_with_ac0_as_divisor_works_for_other_values() {
+        let mut ec = ctx();
+        ec.ac[0] = 100; ec.ac[1] = 1234;
+
+        decode("UDVI", with_ac(0o063201, 0), Some(&mut ec));
+
+        assert!(!ec.carry_flag);
+        assert_eq!(ec.ac[1], 12);
+        assert_eq!(ec.ac[0], 34);
     }
 
     /// Manual p. 3-101 / Table 2-4: only the four least significant bits index the trap table.
