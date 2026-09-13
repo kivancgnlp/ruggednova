@@ -153,6 +153,11 @@ impl InstructionDecoder {
 
             self.decode_and_execute_instruction(&instruction, instruction_word, &extra_words)?;
 
+            // Section 2.30: the check happens "at the conclusion of all instructions and other
+            // operations which push elements onto the Stack", so it belongs here rather than
+            // inside the push itself — one check per instruction however many words it pushed.
+            self.ec.check_for_stack_overflow_after_an_instruction();
+
             if self.ec.mapsi_or_mapsd_active_for_one_instruction && ip_before_instruction_execution == self.ec.mapsi_or_mapsd_active_for_one_instruction_target_ip{
                 self.ec.clear_temporary_used_user_maps();
             }

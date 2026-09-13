@@ -84,7 +84,7 @@ pub(super) fn decode(instruction_word: u16, execution_context: Option<&mut Execu
         if transfer.requires_data_transfer(){
             io_device_emulator::emulate_io_device(io_device, transfer.get_io_device_target_register(), transfer.is_read(), acc,  ec, lookup_peripheral(io_device));
         }
-        if ass_str.contains("SKPDN"){
+        if opcode_is_skip && test_io_skip_condition(io_device, control, ec) {
             ec.ip += 1;
         }
         ec.ip += 1;
@@ -94,6 +94,53 @@ pub(super) fn decode(instruction_word: u16, execution_context: Option<&mut Execu
 }
 
 
+
+/// The CPU's own I/O device code. Table 3-2 lists 77 as "CPU — Central Processing Unit".
+const CPU_DEVICE_CODE: u8 = 0o77;
+
+/// The four I/O skips, 3-106..3-107. Bits 8-9 select the test:
+///
+/// | bits | mnemonic | ordinary device      | device 77 (CPU SKIP, 3-110) |
+/// |------|----------|----------------------|-----------------------------|
+/// | 00   | SKPBN    | test for Busy set    | test for ION = 1            |
+/// | 01   | SKPBZ    | test for Busy clear  | test for ION = 0            |
+/// | 10   | SKPDN    | test for Done set    | test for Power Fail = 1     |
+/// | 11   | SKPDZ    | test for Done clear  | test for Power Fail = 0     |
+///
+/// Previously only `SKPDN` was handled, and it skipped *unconditionally*.
+fn test_io_skip_condition(io_device: u8, control: u8, ec: &ExecutionContext) -> bool {
+
+    let (busy, done) = read_device_flags(io_device, ec);
+
+    match control {
+        0 => busy,
+        1 => !busy,
+        2 => done,
+        3 => !done,
+        _ => unreachable!("control unrecognized"),
+    }
+}
+
+/// Returns (Busy, Done) for a device.
+///
+/// For device 77 these are the processor's own flags: Busy is the Interrupt On flag and Done is
+/// the Power Fail flag (3-110). INS64 group H, H16A at 004176 uses `SKPBZ CPU` to check whether
+/// the Stack Overflow Trap cleared ION.
+///
+/// For every other device code there is no emulated interface yet (finding A3), so both flags read
+/// as clear — the state of a device that is idle or simply not attached. That is a placeholder,
+/// not a model: a test that waits for Done on a real peripheral will spin here. It is still
+/// strictly better than the previous unconditional skip, which fabricated a Done that no device
+/// had set.
+fn read_device_flags(io_device: u8, ec: &ExecutionContext) -> (bool, bool) {
+
+    if io_device == CPU_DEVICE_CODE {
+        return (ec.ion, ec.power_fail);
+    }
+
+    // TODO (A3): per-device Busy/Done once io_device_emulator models interfaces.
+    (false, false)
+}
 
 fn lookup_peripheral(device_code:u8) -> Option<&'static str> {
 
@@ -167,5 +214,61 @@ mod tests {
         println!("{:?}", decoded_instruction);
 
 
+    }
+}
+#[cfg(test)]
+mod cpu_skips {
+    use crate::virtual_machine::ExecutionContext;
+
+    fn run(instruction_word: u16, ion: bool, power_fail: bool) -> u16 {
+        let mut ec = ExecutionContext::new();
+        ec.load_initial_memory(vec![0u16; 0x40]);
+        ec.ion = ion;
+        ec.power_fail = power_fail;
+        ec.ip = 0x100;
+        super::decode(instruction_word, Some(&mut ec));
+        ec.ip - 0x100          // 1 = no skip, 2 = skipped
+    }
+
+    /// CPU SKIP, 3-110. On device 77, Busy is the Interrupt On flag:
+    /// BN tests ION = 1, BZ tests ION = 0.
+    ///
+    /// INS64 group H, H16A at 004176 uses `SKPBZ CPU` to ask whether the Stack Overflow Trap
+    /// cleared ION.
+    #[test]
+    fn skpbn_and_skpbz_on_the_cpu_test_ion() {
+        const SKPBN_CPU: u16 = 0o063477;
+        const SKPBZ_CPU: u16 = 0o063577;
+
+        assert_eq!(run(SKPBN_CPU, true, false), 2, "SKPBN skips when ION is set");
+        assert_eq!(run(SKPBN_CPU, false, false), 1);
+
+        assert_eq!(run(SKPBZ_CPU, false, false), 2, "SKPBZ skips when ION is clear");
+        assert_eq!(run(SKPBZ_CPU, true, false), 1);
+    }
+
+    /// On device 77, Done is the Power Fail flag: DN tests it set, DZ tests it clear.
+    /// `SKPDN` used to skip unconditionally for every device.
+    #[test]
+    fn skpdn_and_skpdz_on_the_cpu_test_power_fail() {
+        const SKPDN_CPU: u16 = 0o063677;
+        const SKPDZ_CPU: u16 = 0o063777;
+
+        assert_eq!(run(SKPDN_CPU, false, true), 2);
+        assert_eq!(run(SKPDN_CPU, false, false), 1, "no power failure, so no skip");
+
+        assert_eq!(run(SKPDZ_CPU, false, false), 2);
+        assert_eq!(run(SKPDZ_CPU, false, true), 1);
+    }
+
+    /// An unemulated device reads as Busy = 0, Done = 0 (finding A3). The point of the test is
+    /// that SKPDN no longer fabricates a Done flag no device ever set.
+    #[test]
+    fn an_unemulated_device_reads_as_idle() {
+        const SKPDN_DEV_12: u16 = 0o063612;
+        const SKPBZ_DEV_12: u16 = 0o063512;
+
+        assert_eq!(run(SKPDN_DEV_12, false, false), 1, "Done is clear, so no skip");
+        assert_eq!(run(SKPBZ_DEV_12, false, false), 2, "Busy is clear, so skip");
     }
 }

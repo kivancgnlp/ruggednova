@@ -448,6 +448,21 @@ impl MappingUnit {
 
     }
 
+    /// Table 2-2 reserves locations 44 and 45 for the Stack Overflow Trap: 44 receives the address
+    /// of the next instruction that would have been executed, 45 holds the handler address. The
+    /// footnote marks 20-37 and 42-45 as dedicated in ABSOLUTE memory, so both are reached
+    /// physically rather than through the map — the same convention `get_trap_vector` uses.
+    const STACK_OVERFLOW_RETURN_LOCATION: usize = 0o44;
+    const STACK_OVERFLOW_HANDLER_LOCATION: usize = 0o45;
+
+    pub(crate) fn set_stack_overflow_return_address(&mut self, address:u16) {
+        self.mem[Self::STACK_OVERFLOW_RETURN_LOCATION] = address;
+    }
+
+    pub(crate) fn get_stack_overflow_handler_address(&self) -> u16 {
+        self.mem[Self::STACK_OVERFLOW_HANDLER_LOCATION]
+    }
+
     pub(crate) fn get_trap_vector(&self, index:u8) -> u16 {
 
         let trap_service_table_adr = self.mem[2];

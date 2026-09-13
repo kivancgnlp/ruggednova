@@ -69,6 +69,15 @@ pub(super) fn decode(mnemonic: &str, extra_word: u16, instruction_word: u16, ec:
                 let allocated = 1_u16.wrapping_add(extra_word);
                 let new_sp = ec.sp.wrapping_sub(allocated);
 
+                // Manual p. 3-69, the one exception to the unsigned SP < SL test: "If allocation
+                // of the block size n results in roll-over of the stack pointer, the resultant
+                // stack pointer is greater than the stack limit, but the overflow will still be
+                // detected." Wrapping past zero is precisely that roll-over, and after it SP is a
+                // large number that would compare as perfectly healthy — so say so explicitly.
+                if new_sp > ec.sp {
+                    ec.force_stack_overflow = true;
+                }
+
                 let mut adr = new_sp;
                 while adr != ec.sp {
                     ec.mapping_unit.write_word_to_memory(adr, 0xaacc, true); // canary, aids debugging
@@ -78,8 +87,10 @@ pub(super) fn decode(mnemonic: &str, extra_word: u16, instruction_word: u16, ec:
 
                 ec.ac[3] = ec.fp;
 
-                // TODO (A1): the manual requires a stack-overflow check here — after the sixth
-                // word is pushed, and again after N is subtracted, including the roll-over case.
+                // The SP < SL test itself runs once, after the instruction completes
+                // (ExecutionContext::check_for_stack_overflow_after_an_instruction), which is
+                // what section 2.30 means by "at the conclusion of" a pushing instruction. The
+                // six pushes above already flagged that a check is owed.
             }
 
             "LDAE" | "STAE" => { // Similar to LDA instruction but displacement is 16 bit

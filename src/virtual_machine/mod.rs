@@ -44,6 +44,22 @@ pub(crate) struct ExecutionContext {
     pub(crate) tto_buffer : String,
     pub(crate) cpu_halted : bool,
 
+    /// Power Fail flag of the CPU device (code 77). `SKPDN CPU` / `SKPDZ CPU` test it (3-110).
+    /// Nothing sets it yet; a power-fail simulation would.
+    pub(crate) power_fail : bool,
+
+    /// Set by every stack push. Section 2.30 puts the overflow check "at the conclusion of all
+    /// instructions and other operations which push elements onto the Stack" — once per
+    /// instruction, not once per word — so SAVE, PST and a nested interrupt each get a single
+    /// check after all their pushes are done.
+    pub(crate) stack_push_occurred : bool,
+
+    /// SAVE's roll-over exception (3-69): "If allocation of the block size n results in roll-over
+    /// of the stack pointer, the resultant stack pointer is greater than the stack limit, but the
+    /// overflow will still be detected." The unsigned SP < SL comparison cannot see that case, so
+    /// the instruction reports it directly.
+    pub(crate) force_stack_overflow : bool,
+
 }
 
 impl Display for ExecutionContext{
@@ -79,17 +95,96 @@ impl ExecutionContext{
     }
 
 
-    pub(crate) fn push_a_single_word_to_the_stack(&mut self, data_word: u16) {
-        self.sp -=1;
-        self.mapping_unit.write_word_to_memory(self.sp,data_word,true);
+    /// Manual p. 3-69, "Stack Registers and Expanded Memory":
+    ///
+    /// > If a stack register has bit 0 set, pointing to an address in expanded memory, the actual
+    /// > address will be in the lower 32k words of memory, i.e., address 107266 will cause the
+    /// > stack operation to be performed at 007266.
+    /// >
+    /// > Microcode comparisons of stack pointer and stack limit compare all 16 bits.
+    ///
+    /// So bit 0 is stripped from the ADDRESS of a stack access when expanded memory is disabled,
+    /// but the register itself keeps it, and the overflow comparison still sees all 16 bits.
+    ///
+    /// INS64 group H, H18 at 004245 tests exactly this, and the listing calls it out as a way to
+    /// "cheat" the stack overflow check: it sets SP to T3 | 0x8000 with EM clear, pushes, and then
+    /// reads the pushed word back from the LOW address T3-1. A 16-bit SP well above SL means no
+    /// overflow is raised, while the data lands in page zero.
+    fn stack_access_address(&self, pointer: u16) -> u16 {
+        if self.is_expanded_memory_for_the_current_user() {
+            pointer
+        } else {
+            pointer & 0x7fff
+        }
+    }
 
-        debug_assert!( self.sp > self.sl);
+    pub(crate) fn push_a_single_word_to_the_stack(&mut self, data_word: u16) {
+        // Roll-over is a documented case, not a bug (3-69), so this must wrap rather than panic.
+        self.sp = self.sp.wrapping_sub(1);
+        let adr = self.stack_access_address(self.sp);
+        self.mapping_unit.write_word_to_memory(adr,data_word,true);
+
+        // The fault is NOT raised here. Section 2.30 checks at the conclusion of the instruction,
+        // which is what lets SAVE push its six words plus an n-word block and only then fault.
+        self.stack_push_occurred = true;
+    }
+
+    /// Section 2.30 / 3-69. Call once, after an instruction has finished executing.
+    ///
+    /// "The Stack Pointer and the Stack Limit are treated as unsigned 16-bit integers and
+    /// compared. If the Stack Pointer is less than the Stack Limit, a stack overflow condition
+    /// exists and a trap is initiated."
+    ///
+    /// SP == SL is legal — it is the last usable word of the stack. INS64 group H, H16 at 004161
+    /// relies on exactly that: it sets SP = 0o421 / SL = 0o420 and requires the first push (which
+    /// leaves SP == SL) to succeed and the second to fault.
+    ///
+    /// Returns true when the trap was taken.
+    pub(crate) fn check_for_stack_overflow_after_an_instruction(&mut self) -> bool {
+
+        if !self.stack_push_occurred && !self.force_stack_overflow {
+            return false;
+        }
+
+        let overflowed = self.force_stack_overflow || self.sp < self.sl;
+
+        self.stack_push_occurred = false;
+        self.force_stack_overflow = false;
+
+        if overflowed {
+            self.stack_overflow_trap();
+        }
+
+        overflowed
+    }
+
+    /// Section 2.30: "This trap sequence stores the address of the next instruction to be executed
+    /// in memory location 44, and executes a JMP to the address stored in location 45."
+    ///
+    /// `ip` already points at the next instruction by the time this runs — each pushing
+    /// instruction increments the PC before the check (see the PSH and PJS flows, 3-106).
+    ///
+    /// The trap does NOT switch to Executive Mode when the processor is in User Mode, and it does
+    /// not touch Carry or Overflow.
+    pub(crate) fn stack_overflow_trap(&mut self) {
+
+        let return_address = self.ip;
+
+        self.mapping_unit.set_stack_overflow_return_address(return_address);
+        self.ip = self.mapping_unit.get_stack_overflow_handler_address();
+
+        // INS64 H16 (listing page 0054) checks with SKPBZ CPU that ION was cleared by the trap,
+        // and its companion test at H16E accepts ION still set on a MAPPED cpu. The 1666B is
+        // mapped, and section 2.30 says nothing about ION, so ION is left alone here. Only the
+        // Branch-and-Nest sequence clears it explicitly (section 2.27: "If the stack has
+        // overflowed, ION is cleared and the Stack Overflow Trap Sequence is initiated").
     }
 
     pub(crate) fn pop_a_single_word_from_the_stack(&mut self) -> u16 {
 
-        let data_word = self.mapping_unit.read_word_from_memory(self.sp,true);
-        self.sp +=1;
+        let adr = self.stack_access_address(self.sp);
+        let data_word = self.mapping_unit.read_word_from_memory(adr,true);
+        self.sp = self.sp.wrapping_add(1);
 
         // TODO : Below check do not work on stack changes
         //debug_assert!( self.sp <= Self::TOP_OF_EXECUTIVE_STACK, "Stack underflow");
@@ -321,7 +416,121 @@ impl ExecutionContext{
             rtc_initialized: false,
             tto_buffer: String::new(),
             cpu_halted: false,
+            power_fail: false,
+            stack_push_occurred: false,
+            force_stack_overflow: false,
         }
     }
     
+}
+#[cfg(test)]
+mod stack_overflow_trap {
+    use super::*;
+
+    /// Sets up the machine the way INS64 group H, H16 at 004161 does: SP just one word above SL,
+    /// with a handler address installed in location 45.
+    fn machine_with_a_nearly_full_stack() -> ExecutionContext {
+        let mut ec = ExecutionContext::new();
+        let mut mem = vec![0u16; 0x600];
+        mem[0o45] = 0o4176;            // stack overflow trap handler, as H16 installs it
+        ec.load_initial_memory(mem);
+        ec.sp = 0o421;
+        ec.sl = 0o420;
+        ec.ip = 0o4173;
+        ec
+    }
+
+    /// "If the Stack Pointer is less than the Stack Limit" — so SP == SL is the last legal word,
+    /// not a fault. INS64 H16 pushes once expecting success ("SHOULD NOT GET STACK OVERFLOW")
+    /// before pushing again expecting the trap.
+    #[test]
+    fn a_push_that_lands_on_the_stack_limit_is_legal() {
+        let mut ec = machine_with_a_nearly_full_stack();
+
+        ec.push_a_single_word_to_the_stack(0x1234);
+        let trapped = ec.check_for_stack_overflow_after_an_instruction();
+
+        assert_eq!(ec.sp, 0o420, "SP now equals SL");
+        assert!(!trapped, "SP == SL must not fault");
+        assert_eq!(ec.ip, 0o4173, "PC untouched");
+    }
+
+    /// The very next push takes SP below SL and must trap.
+    #[test]
+    fn a_push_below_the_stack_limit_traps() {
+        let mut ec = machine_with_a_nearly_full_stack();
+
+        ec.push_a_single_word_to_the_stack(0x1234);
+        assert!(!ec.check_for_stack_overflow_after_an_instruction());
+
+        ec.ip = 0o4174;                       // the PC is advanced before the check (3-106)
+        ec.push_a_single_word_to_the_stack(0x5678);
+        let trapped = ec.check_for_stack_overflow_after_an_instruction();
+
+        assert!(trapped);
+        assert_eq!(ec.ip, 0o4176, "JMP to the address in location 45");
+        assert_eq!(ec.mapping_unit.read_word_from_memory(0o44, true), 0o4174,
+                   "location 44 holds the address of the next instruction");
+    }
+
+    /// An instruction that pushes nothing is never checked, however sick the pointers look.
+    #[test]
+    fn no_push_means_no_check() {
+        let mut ec = machine_with_a_nearly_full_stack();
+        ec.sp = 0;                            // far below the limit
+        assert!(!ec.check_for_stack_overflow_after_an_instruction());
+        assert_eq!(ec.ip, 0o4173);
+    }
+
+    /// Section 2.30 checks "at the conclusion of" a pushing instruction, so one instruction that
+    /// pushes six words gets one check, and a push that dips below SL and is undone within the
+    /// same instruction never faults.
+    #[test]
+    fn the_check_is_per_instruction_not_per_word() {
+        let mut ec = machine_with_a_nearly_full_stack();
+
+        ec.push_a_single_word_to_the_stack(1);   // SP -> 420
+        ec.push_a_single_word_to_the_stack(2);   // SP -> 417, below SL
+        ec.pop_a_single_word_from_the_stack();   // SP -> 420 again
+        ec.pop_a_single_word_from_the_stack();   // SP -> 421
+
+        assert!(!ec.check_for_stack_overflow_after_an_instruction(),
+                "only the pointer at the end of the instruction matters");
+    }
+
+    /// Manual p. 3-69: SAVE's roll-over "will still be detected" even though the resulting SP
+    /// compares as greater than SL.
+    #[test]
+    fn save_roll_over_is_reported_even_though_sp_looks_healthy() {
+        let mut ec = machine_with_a_nearly_full_stack();
+        ec.sp = 0x8000;
+        ec.sl = 0x0100;
+        ec.force_stack_overflow = true;       // what SAVE sets when the allocation wraps
+        ec.sp = 0xfff0;                       // wrapped: now far ABOVE the limit
+
+        assert!(ec.check_for_stack_overflow_after_an_instruction(),
+                "roll-over faults despite SP > SL");
+        assert_eq!(ec.ip, 0o4176);
+    }
+
+    /// Manual p. 3-69: with expanded memory disabled, a stack register with bit 0 set addresses
+    /// the low 32K — "address 107266 will cause the stack operation to be performed at 007266" —
+    /// while the register keeps bit 0 and the SP/SL comparison still sees all 16 bits.
+    ///
+    /// INS64 group H, H18 at 004245 calls this "cheating" the stack overflow check.
+    #[test]
+    fn a_stack_pointer_with_bit_zero_set_addresses_the_low_32k() {
+        let mut ec = ExecutionContext::new();
+        ec.load_initial_memory(vec![0u16; 0x600]);
+        ec.sp = 0x8038;
+        ec.sl = 0x0110;
+
+        ec.push_a_single_word_to_the_stack(0x4321);
+
+        assert_eq!(ec.sp, 0x8037, "the register keeps bit 0");
+        assert_eq!(ec.mapping_unit.read_word_from_memory(0x0037, true), 0x4321,
+                   "but the word lands in the low 32K");
+        assert!(!ec.check_for_stack_overflow_after_an_instruction(),
+                "0x8037 > 0x0110 as unsigned 16-bit values, so no overflow is raised");
+    }
 }
