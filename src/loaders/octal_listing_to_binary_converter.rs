@@ -47,6 +47,11 @@ pub(crate) fn parse_ins64_pdf_parts_to_bin_file() -> Result<[u16; 65536], Error>
 
     let mut mem_wr_map = HashMap::<u16,u16>::new();
 
+    let (mut loaded, mut gaps, mut unprinted) = (0_u32, 0_u32, 0_u32);
+    let (mut malformed, mut duplicates, mut relocations) = (0_u32, 0_u32, 0_u32);
+    let (lowest_adr, mut highest_adr) = (0_u16, 0_u16);
+    let mut widest_gap = (0_u16, 0_u16, 0_u16);
+
         let file_str = std::fs::read_to_string("Data/Diagnostic images/1664 INSTRUCTION TEST (INS64)/ins64_addr_word.txt")?;
 
         for i in file_str.lines() {
@@ -65,21 +70,54 @@ pub(crate) fn parse_ins64_pdf_parts_to_bin_file() -> Result<[u16; 65536], Error>
                 mem[oct_adr as usize] = oct_val;
 
                 if oct_adr != prev_adr_word {
-                    println!("Address {:#o} not consecutive with previous address {:#o}", oct_adr, prev_adr_word);
+                    // Gaps are normal: .BLK reserved storage and .TXT string bodies are not
+                    // printed with an address, and .LOC jumps around. Count them rather than
+                    // printing 35 lines, but keep the widest ones so an unexpected one shows.
+                    if oct_adr > prev_adr_word {
+                        gaps += 1;
+                        let gap_width = oct_adr - prev_adr_word;
+                        unprinted += gap_width as u32;
+                        if gap_width > widest_gap.2 {
+                            widest_gap = (prev_adr_word, oct_adr, gap_width);
+                        }
+                    } else {
+                        // A backward step is a .LOC directive relocating the assembly, not a gap.
+                        relocations += 1;
+                    }
                     prev_adr_word = oct_adr;
                 }
                 prev_adr_word +=1;
 
+                if oct_adr > highest_adr { highest_adr = oct_adr; }
+                loaded += 1;
+
                 if mem_wr_map.contains_key(&oct_adr){
+                    duplicates += 1;
                     println!("Address {:#o} previously written by {}, current line : {}",oct_adr, mem_wr_map.get(&oct_adr).unwrap(),i);
                 }else {
                     mem_wr_map.insert(oct_adr, oct_val);
                 }
             }else {
+                malformed += 1;
                 println!("Error parsing line : {}", i);
             }
 
         }
+
+    // A listing that silently loses words does not fail where the words are missing -- it fails
+    // wherever the program first dereferences one of them, which can be thousands of words away.
+    // Two cases already cost a debugging session each: a `.BLK 0` operand read as an object word
+    // clobbered the JMP ending LOAD4, and a two-page extraction shortfall left the C?TTY vector
+    // zero, sending the error reporter to address 0. So say plainly what was loaded.
+    println!("INS64 listing: {} words loaded, {:#o}..{:#o}, {} gaps ({} words not printed), {} .LOC relocations",
+             loaded, lowest_adr, highest_adr, gaps, unprinted, relocations);
+    println!("  widest gap {:#o} -> {:#o} ({} words) -- expect .BLK storage or a .TXT body",
+             widest_gap.0, widest_gap.1, widest_gap.2);
+
+    if malformed > 0 || duplicates > 0 {
+        println!("  !! {} malformed line(s), {} duplicate address(es) -- the image is INCOMPLETE",
+                 malformed, duplicates);
+    }
 
     Ok(mem)
 }
