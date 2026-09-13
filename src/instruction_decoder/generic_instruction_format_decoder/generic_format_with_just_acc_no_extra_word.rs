@@ -5,7 +5,7 @@ use crate::instruction_decoder::alc_format_data_fields::Accumulators;
 use crate::instruction_decoder::bit_utils::{get_bits, set_bits};
 use crate::virtual_machine::ExecutionContext;
 
-pub(crate) const INS: [&str; 29] = ["RSP","WSP","RFP","WFP","RSL","WSL","POP","IOR","XOR","PSH","DEC","UDVI", "SDVD","UDVD","SMPY","UMPY","UMPA","WMSR","RMSR","READS","MSKO","RMVR","TRAP","UJMP","BTZ","BTO","SZB","SZBO","COB"];
+pub(crate) const INS: [&str; 31] = ["RSP","WSP","RFP","WFP","RSL","WSL","POP","IOR","XOR","PSH","DEC","UDVI", "SDVD","UDVD","SMPY","UMPY","UMPA","WMSR","RMSR","READS","MSKO","RMVR","TRAP","UJMP","BTZ","BTO","SZB","SZBO","COB","LDF","STF"];
 
 pub(super) fn decode(mnemonic : &str, instruction_word: u16, ec: Option<&mut ExecutionContext>) -> String {
 
@@ -209,6 +209,50 @@ pub(super) fn decode(mnemonic : &str, instruction_word: u16, ec: Option<&mut Exe
                 change_bit(ec, abn as usize, false);
             }
 
+            "LDF" => {
+                // LOAD BIT FIELD, manual p. 3-16..3-17.
+                //   AC1 = length of bit field, ABn = bit field address.
+                //   "The LDF instruction loads AC0 with the bit field pointed to by (abn). The
+                //    length of the bit field is specified by the low order four bits of AC1 (if 0,
+                //    a field of length 16 will be loaded). The result is right justified in AC0."
+                //
+                // The field is read most-significant bit first, starting AT the bit address, and
+                // may run across word boundaries — the manual's own worked example unpacks a
+                // 14/8/10 split of a 32-bit double word, where the 8-bit field straddles the two
+                // words.
+                //
+                // Note what does NOT happen: the bit address is not advanced. That example steps
+                // it by hand with `ADD 1,2` between the loads.
+                let length = bit_field_length(ec.ac[1]);
+                let base = form_bit_field_address(ec, target_acc);
+
+                let mut field = 0_u16;
+                for i in 0..length {
+                    field = (field << 1) | read_bit_at(ec, base.wrapping_add(i)) as u16;
+                }
+
+                ec.ac[0] = field;   // right justified; Carry and Overflow unaffected
+            }
+
+            "STF" => {
+                // STORE BIT FIELD, manual p. 3-18.
+                //   AC0 = bit field to be stored, AC1 = length, ABn = bit field address.
+                //   "Store the right justified bit field in AC0 at the bit field address given by
+                //    (abn). The length of the bit field is given by the low order four bits of AC1
+                //    (if 0, a field of length 16 will be stored)."
+                //
+                // The exact inverse of LDF: bit 0 of the stored field is the field's most
+                // significant bit, which lives at the LOW end of the right-justified value in AC0.
+                let length = bit_field_length(ec.ac[1]);
+                let base = form_bit_field_address(ec, target_acc);
+                let field = ec.ac[0];
+
+                for i in 0..length {
+                    let bit = (field >> (length - 1 - i)) & 1 != 0;
+                    write_bit_at(ec, base.wrapping_add(i), bit);
+                }
+            }
+
             "BTO" => {
                 //SET BIT TO ONE
                 change_bit(ec, abn as usize,true);
@@ -274,6 +318,40 @@ pub(super) fn decode(mnemonic : &str, instruction_word: u16, ec: Option<&mut Exe
     }
 
     asm_str
+}
+
+/// Manual p. 3-17: "A bit field address is the sum of (bn) four bits left shifted and (acn)",
+/// giving a 20-bit address — 65,536 words of 16 bits each. Word `n` of memory owns bit addresses
+/// `16n .. 16n+15`, and within a word bit 0 is the most significant, the same numbering the whole
+/// manual uses.
+fn form_bit_field_address(ec: &ExecutionContext, target_acc: usize) -> u32 {
+    const BIT_FIELD_ADDRESS_MASK: u32 = 0x0f_ffff;   // 20 bits
+
+    let bit_adr = (ec.ac[target_acc] as u32) + ((ec.br[target_acc - 2] as u32) << 4);
+    bit_adr & BIT_FIELD_ADDRESS_MASK
+}
+
+/// "The length of the bit field is specified by the low order four bits of AC1 (if 0, a field of
+/// length 16 will be loaded)." (3-17, and identically for STF on 3-18.)
+fn bit_field_length(ac1: u16) -> u32 {
+    match ac1 & 0x0f {
+        0 => 16,
+        n => n as u32,
+    }
+}
+
+fn read_bit_at(ec: &mut ExecutionContext, bit_adr: u32) -> bool {
+    let word = ec.mapping_unit.read_word_from_memory((bit_adr >> 4) as u16, true);
+    let index = (bit_adr & 0xf) as u8;
+    get_bits(word, index, index) != 0
+}
+
+fn write_bit_at(ec: &mut ExecutionContext, bit_adr: u32, value: bool) {
+    let word_adr = (bit_adr >> 4) as u16;
+    let mut word = ec.mapping_unit.read_word_from_memory(word_adr, true);
+    let index = (bit_adr & 0xf) as u8;
+    set_bits(&mut word, index, index, value as u16);
+    ec.mapping_unit.write_word_to_memory(word_adr, word, true);
 }
 
 fn change_bit(ec: &mut ExecutionContext, target_acc: usize, val:bool) {
@@ -545,5 +623,133 @@ mod tests {
         assert_eq!(ec.sp, 5);
         assert_eq!(ec.ac[1], 0x1234);
         println!("{}",ec)
+    }
+}
+#[cfg(test)]
+mod bit_fields {
+    use super::*;
+
+    const LDF_AB2: u16 = 0x7600;
+    const STF_AB2: u16 = 0x7640;
+
+    fn ctx() -> ExecutionContext {
+        let mut ec = ExecutionContext::new();
+        ec.load_initial_memory(vec![0u16; 0x100]);
+        ec
+    }
+
+    /// The manual's own worked example, p. 3-17: unpack a 32-bit code split into three fields of
+    /// 14, 8 and 10 bits, right-justifying each into AC0.
+    ///
+    /// ```text
+    ///   START: LEF 2,PAC     ;LOAD PAC ADDRESS
+    ///          WBR 2,2       ;SET BASE REGISTER
+    ///          SUB 2,2       ;ZERO AC2
+    ///          LEF 1,14.     ;14 TO AC1
+    ///          LDF 2         ;FIELD 1 TO AC0
+    ///          ADD 1,2       ;ADD 14 TO AB2
+    ///          ...
+    /// ```
+    ///
+    /// The 8-bit middle field straddles the word boundary, which is the part worth testing: the
+    /// field is read most-significant bit first from the bit address and simply runs on into the
+    /// next word.
+    #[test]
+    fn ldf_unpacks_the_manuals_three_field_example() {
+        let mut ec = ctx();
+        // 0xAAAB33C3 = 14 bits 0x2AAA | 8 bits 0xCC | 10 bits 0x3C3
+        ec.mapping_unit.write_word_to_memory(0x20, 0xAAAB, true);
+        ec.mapping_unit.write_word_to_memory(0x21, 0x33C3, true);
+
+        ec.br[0] = 0x20;          // WBR 2,2 — the base register holds the word address
+        ec.ac[2] = 0;             // SUB 2,2 — bit offset zero
+
+        ec.ac[1] = 14;
+        decode("LDF", LDF_AB2, Some(&mut ec));
+        assert_eq!(ec.ac[0], 0x2AAA, "field 1, right justified");
+
+        ec.ac[2] += 14;           // ADD 1,2
+        ec.ac[1] = 8;
+        decode("LDF", LDF_AB2, Some(&mut ec));
+        assert_eq!(ec.ac[0], 0x00CC, "field 2 straddles the word boundary");
+
+        ec.ac[2] += 8;
+        ec.ac[1] = 10;
+        decode("LDF", LDF_AB2, Some(&mut ec));
+        assert_eq!(ec.ac[0], 0x03C3, "field 3");
+    }
+
+    /// "if 0, a field of length 16 will be loaded" — only the low four bits of AC1 are the length,
+    /// so 0x10 and 0x20 mean 16 too.
+    #[test]
+    fn a_length_of_zero_means_sixteen() {
+        let mut ec = ctx();
+        ec.mapping_unit.write_word_to_memory(0x30, 0x1234, true);
+        ec.br[0] = 0x30;
+        ec.ac[2] = 0;
+
+        ec.ac[1] = 0;
+        decode("LDF", LDF_AB2, Some(&mut ec));
+        assert_eq!(ec.ac[0], 0x1234);
+
+        ec.ac[1] = 0xfff0;        // high bits are ignored; the low four are still zero
+        ec.ac[0] = 0;
+        decode("LDF", LDF_AB2, Some(&mut ec));
+        assert_eq!(ec.ac[0], 0x1234);
+    }
+
+    /// STF is the exact inverse of LDF, and must disturb nothing outside the field.
+    #[test]
+    fn stf_writes_only_the_field() {
+        let mut ec = ctx();
+        ec.mapping_unit.write_word_to_memory(0x40, 0xffff, true);
+        ec.mapping_unit.write_word_to_memory(0x41, 0xffff, true);
+
+        ec.br[0] = 0x40;
+        ec.ac[2] = 4;             // start four bits in
+        ec.ac[1] = 8;
+        ec.ac[0] = 0x00a5;
+
+        decode("STF", STF_AB2, Some(&mut ec));
+
+        assert_eq!(ec.mapping_unit.read_word_from_memory(0x40, true), 0xfa5f,
+                   "bits 4-11 replaced, the rest untouched");
+        assert_eq!(ec.mapping_unit.read_word_from_memory(0x41, true), 0xffff,
+                   "the next word is not touched");
+    }
+
+    /// Round-trip across a word boundary, in both accumulator flavours.
+    #[test]
+    fn stf_then_ldf_round_trips_across_a_word_boundary() {
+        for (ldf, stf, br_index, ac_index) in [(LDF_AB2, STF_AB2, 0usize, 2usize),
+                                               (0x7E00u16, 0x7E40u16, 1usize, 3usize)] {
+            let mut ec = ctx();
+            ec.br[br_index] = 0x50;
+            ec.ac[ac_index] = 12;     // 12 bits in, so a 10-bit field crosses into the next word
+            ec.ac[1] = 10;
+            ec.ac[0] = 0x0355;
+
+            decode("STF", stf, Some(&mut ec));
+
+            ec.ac[0] = 0;
+            decode("LDF", ldf, Some(&mut ec));
+            assert_eq!(ec.ac[0], 0x0355, "round trip through AB{}", ac_index);
+        }
+    }
+
+    /// Manual p. 3-17: "A bit field address is the sum of (bn) four bits left shifted and (acn)",
+    /// so the accumulator is a bit offset within the base register's word.
+    #[test]
+    fn the_bit_field_address_is_the_base_register_shifted_by_four_plus_the_accumulator() {
+        let mut ec = ctx();
+        ec.mapping_unit.write_word_to_memory(0x61, 0xf000, true);
+
+        ec.br[0] = 0x60;
+        ec.ac[2] = 16;            // one whole word past the base
+        ec.ac[1] = 4;
+
+        decode("LDF", LDF_AB2, Some(&mut ec));
+
+        assert_eq!(ec.ac[0], 0xf, "read from word 0x61, not 0x60");
     }
 }
